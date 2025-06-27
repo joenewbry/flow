@@ -45,6 +45,9 @@ cd digital-surface
 npm install
 ```
 
+### 1.5 Setup NVM
+- NVM use stable (20+)
+
 ### 2. Install Dependencies
 
 ```bash
