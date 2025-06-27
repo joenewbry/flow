@@ -1,0 +1,13 @@
+{
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.55.0",
+    "@chroma-core/default-embed": "^0.1.8",
+    "chromadb": "^3.0.5",
+    "chromadb-default-embed": "^2.14.0",
+    "date-fns": "^4.1.0",
+    "dotenv": "^16.5.0",
+    "package.json": "^2.0.1",
+    "screenshot-desktop": "^1.15.1"
+  },
+  "type": "module"
+}
