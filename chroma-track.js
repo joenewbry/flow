@@ -127,6 +127,42 @@ async function processScreenshotWithClaude(imageBase64) {
   }
 }
 
+// Process screenshot with OCR
+async function processScreenshotWithOCR(imageBuffer) {
+  try {
+    console.log('Processing screenshot with OCR...');
+    
+    // Dynamic import for Tesseract
+    const { createWorker } = await import('tesseract.js');
+    
+    const worker = await createWorker('eng');
+    
+    // Convert buffer to base64 for Tesseract
+    const base64Image = bufferToBase64(imageBuffer);
+    
+    const { data: { text } } = await worker.recognize(`data:image/jpeg;base64,${base64Image}`);
+    
+    await worker.terminate();
+    
+    // Create a simplified analysis object with OCR results
+    const analysis = {
+      active_app: 'OCR Mode',
+      summary: `OCR extracted ${text.length} characters of text`,
+      extracted_text: text.trim(),
+      task_category: 'text_extraction',
+      productivity_score: 0,
+      workflow_suggestions: '',
+      user_generated_text: text.trim()
+    };
+    
+    console.log(`OCR completed. Extracted ${text.length} characters.`);
+    return analysis;
+  } catch (error) {
+    console.error('OCR Error:', error.message);
+    return null;
+  }
+}
+
 // Add JSON data to vector store
 async function addToVectorStore(collection, analysisData) {
   try {
@@ -261,6 +297,7 @@ async function loadExistingHistory(collection, screenhistoryDir) {
 
 // Global state for pause functionality
 let isPaused = false;
+let useOCR = false; // New flag for OCR mode
 let rl;
 
 // Initialize readline interface for keyboard input
@@ -311,8 +348,10 @@ function initializeReadline() {
 // Show interactive menu
 function showMenu() {
   const pauseResumeText = isPaused ? 'Resume tracking' : 'Pause tracking';
+  const ocrModeText = useOCR ? 'Switch to Claude' : 'Switch to OCR';
   console.log('\n\n=== Screen Tracking Menu ===');
   console.log(`p - ${pauseResumeText}`);
+  console.log(`o - ${ocrModeText}`);
   console.log('s - Show status');
   console.log('q - Quit');
   console.log('========================');
@@ -325,6 +364,9 @@ function showMenu() {
     switch (choice) {
       case 'p':
         togglePause();
+        break;
+      case 'o':
+        toggleOCRMode();
         break;
       case 's':
         showStatus();
@@ -349,10 +391,21 @@ function togglePause() {
   }
 }
 
+// Toggle OCR mode
+function toggleOCRMode() {
+  useOCR = !useOCR;
+  const mode = useOCR ? 'OCR' : 'Claude';
+  console.log(`\nSwitched to ${mode} mode`);
+  if (useOCR) {
+    console.log('Note: OCR mode provides basic text extraction without detailed analysis');
+  }
+}
+
 // Show current status
 function showStatus() {
   console.log('\n=== Current Status ===');
   console.log(`Tracking: ${isPaused ? 'PAUSED' : 'ACTIVE'}`);
+  console.log(`Mode: ${useOCR ? 'OCR' : 'Claude'}`);
   console.log(`Timestamp: ${new Date().toISOString()}`);
   console.log('=====================');
 }
@@ -362,6 +415,7 @@ async function trackScreen() {
   try {
     console.log('Starting screen tracking...');
     console.log('Type "/" to access the menu');
+    console.log(`Initial mode: ${useOCR ? 'OCR' : 'Claude'}`);
     
     // Initialize keyboard input handling
     initializeReadline();
@@ -393,8 +447,13 @@ async function trackScreen() {
       const img = await screenshot();
       await fs.writeFile(screenshotPath, img);
       
-      const base64Image = bufferToBase64(img);
-      const analysis = await processScreenshotWithClaude(base64Image);
+      let analysis;
+      if (useOCR) {
+        analysis = await processScreenshotWithOCR(img);
+      } else {
+        const base64Image = bufferToBase64(img);
+        analysis = await processScreenshotWithClaude(base64Image);
+      }
       
       if (analysis) {
         analysis.timestamp = currentISOTimestamp;
