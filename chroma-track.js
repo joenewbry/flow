@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { Anthropic } from '@anthropic-ai/sdk';
 import dotenv from 'dotenv';
+import readline from 'readline';
 
 // Helper function to convert filename-style timestamps to ISO 8601
 function convertFilenameTimestampToISO(ts) {
@@ -258,10 +259,113 @@ async function loadExistingHistory(collection, screenhistoryDir) {
   }
 }
 
+// Global state for pause functionality
+let isPaused = false;
+let rl;
+
+// Initialize readline interface for keyboard input
+function initializeReadline() {
+  rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+  
+  // Handle raw input to capture single characters
+  process.stdin.setRawMode(true);
+  process.stdin.resume();
+  process.stdin.setEncoding('utf8');
+  
+  let inputBuffer = '';
+  
+  process.stdin.on('data', (key) => {
+    // Handle Ctrl+C to exit
+    if (key === '\u0003') {
+      console.log('\nExiting...');
+      process.exit();
+    }
+    
+    // Handle backspace
+    if (key === '\u007f' || key === '\u0008') {
+      if (inputBuffer.length > 0) {
+        inputBuffer = inputBuffer.slice(0, -1);
+        process.stdout.write('\b \b');
+      }
+      return;
+    }
+    
+    // Handle enter key
+    if (key === '\r' || key === '\n') {
+      if (inputBuffer === '/') {
+        showMenu();
+      }
+      inputBuffer = '';
+      return;
+    }
+    
+    // Add character to buffer and echo it
+    inputBuffer += key;
+    process.stdout.write(key);
+  });
+}
+
+// Show interactive menu
+function showMenu() {
+  const pauseResumeText = isPaused ? 'Resume tracking' : 'Pause tracking';
+  console.log('\n\n=== Screen Tracking Menu ===');
+  console.log(`p - ${pauseResumeText}`);
+  console.log('s - Show status');
+  console.log('q - Quit');
+  console.log('========================');
+  console.log('Enter your choice: ');
+  
+  // Listen for single character input
+  process.stdin.once('data', (key) => {
+    const choice = key.toString().toLowerCase();
+    
+    switch (choice) {
+      case 'p':
+        togglePause();
+        break;
+      case 's':
+        showStatus();
+        break;
+      case 'q':
+        console.log('\nExiting...');
+        process.exit();
+        break;
+      default:
+        console.log('\nInvalid choice. Press / to show menu again.');
+    }
+  });
+}
+
+// Toggle pause state
+function togglePause() {
+  isPaused = !isPaused;
+  const status = isPaused ? 'PAUSED' : 'RESUMED';
+  console.log(`\nScreen tracking ${status}`);
+  if (!isPaused) {
+    console.log('Resuming tracking...');
+  }
+}
+
+// Show current status
+function showStatus() {
+  console.log('\n=== Current Status ===');
+  console.log(`Tracking: ${isPaused ? 'PAUSED' : 'ACTIVE'}`);
+  console.log(`Timestamp: ${new Date().toISOString()}`);
+  console.log('=====================');
+}
+
 // Main tracking function
 async function trackScreen() {
   try {
     console.log('Starting screen tracking...');
+    console.log('Type "/" to access the menu');
+    
+    // Initialize keyboard input handling
+    initializeReadline();
+    
     const { screenshotsDir, screenhistoryDir } = await ensureDirectories();
     const collection = await initializeVectorStore();
 
@@ -273,6 +377,12 @@ async function trackScreen() {
 
     // Main loop for capturing new screenshots
     while (true) {
+      // Check if paused
+      if (isPaused) {
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Check every second
+        continue;
+      }
+      
       const now = new Date();
       const currentISOTimestamp = now.toISOString();
       const filenameTimestamp = currentISOTimestamp.replace(/[:.]/g, '-');
