@@ -353,6 +353,7 @@ function showMenu() {
   console.log(`p - ${pauseResumeText}`);
   console.log(`o - ${ocrModeText}`);
   console.log('s - Show status');
+  console.log('d - Generate daily summary');
   console.log('q - Quit');
   console.log('========================');
   console.log('Enter your choice: ');
@@ -370,6 +371,9 @@ function showMenu() {
         break;
       case 's':
         showStatus();
+        break;
+      case 'd':
+        generateDailySummary();
         break;
       case 'q':
         console.log('\nExiting...');
@@ -640,5 +644,361 @@ async function createSimpleChromaStore(collectionName = 'screen_history', chroma
   } catch (error) {
     console.error('Failed to create SimpleChromaStore:', error.message);
     throw error;
+  }
+}
+
+// Generate daily summary
+async function generateDailySummary() {
+  try {
+    console.log('\n=== Daily Summary Generation ===');
+    
+    // Get date input from user
+    const date = await getUserDateInput();
+    if (!date) {
+      console.log('Summary generation cancelled.');
+      return;
+    }
+    
+    console.log(`\nGenerating summary for ${date}...`);
+    
+    // Get all data for the specified date
+    const dailyData = await getDailyData(date);
+    
+    if (dailyData.length === 0) {
+      console.log(`No data found for ${date}`);
+      return;
+    }
+    
+    console.log(`Found ${dailyData.length} screenshots for ${date}`);
+    
+    // Generate summary
+    const summary = await generateSummaryWithClaude(dailyData, date);
+    
+    if (summary) {
+      // Save summary to file
+      await saveSummaryToFile(summary, date);
+      console.log(`Daily summary saved to ${date}-summary.md`);
+    } else {
+      console.log('Failed to generate summary');
+    }
+    
+  } catch (error) {
+    console.error('Error generating daily summary:', error.message);
+  }
+}
+
+// Get date input from user
+async function getUserDateInput() {
+  return new Promise((resolve) => {
+    console.log('\nEnter date for summary (YYYY-MM-DD format):');
+    console.log('Examples: 2024-01-15, 2024-12-01');
+    console.log('Press Enter for today, or type "cancel" to cancel:');
+    
+    let inputBuffer = '';
+    
+    const handleInput = (key) => {
+      // Handle Ctrl+C
+      if (key === '\u0003') {
+        resolve(null);
+        return;
+      }
+      
+      // Handle backspace
+      if (key === '\u007f' || key === '\u0008') {
+        if (inputBuffer.length > 0) {
+          inputBuffer = inputBuffer.slice(0, -1);
+          process.stdout.write('\b \b');
+        }
+        return;
+      }
+      
+      // Handle enter
+      if (key === '\r' || key === '\n') {
+        process.stdin.off('data', handleInput);
+        
+        if (inputBuffer.trim() === '' || inputBuffer.trim().toLowerCase() === 'today') {
+          // Use today's date
+          const today = new Date().toISOString().split('T')[0];
+          resolve(today);
+        } else if (inputBuffer.trim().toLowerCase() === 'cancel') {
+          resolve(null);
+        } else {
+          // Validate date format
+          const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+          if (dateRegex.test(inputBuffer.trim())) {
+            const date = new Date(inputBuffer.trim());
+            if (!isNaN(date.getTime())) {
+              resolve(inputBuffer.trim());
+            } else {
+              console.log('\nInvalid date. Please use YYYY-MM-DD format.');
+              resolve(null);
+            }
+          } else {
+            console.log('\nInvalid format. Please use YYYY-MM-DD format.');
+            resolve(null);
+          }
+        }
+        return;
+      }
+      
+      // Add character to buffer
+      inputBuffer += key;
+      process.stdout.write(key);
+    };
+    
+    process.stdin.on('data', handleInput);
+  });
+}
+
+// Get all data for a specific date
+async function getDailyData(date) {
+  try {
+    const { screenhistoryDir } = await ensureDirectories();
+    const files = await fs.readdir(screenhistoryDir);
+    const jsonFiles = files.filter(file => path.extname(file).toLowerCase() === '.json');
+    
+    const dailyData = [];
+    
+    for (const file of jsonFiles) {
+      const filePath = path.join(screenhistoryDir, file);
+      try {
+        const fileContent = await fs.readFile(filePath, 'utf-8');
+        
+        if (fileContent.trim() === 'null' || fileContent.trim() === '') {
+          continue;
+        }
+        
+        const analysis = JSON.parse(fileContent);
+        if (analysis && analysis.timestamp) {
+          const fileDate = new Date(analysis.timestamp).toISOString().split('T')[0];
+          if (fileDate === date) {
+            dailyData.push(analysis);
+          }
+        }
+      } catch (error) {
+        console.warn(`Error reading file ${file}:`, error.message);
+      }
+    }
+    
+    // Sort by timestamp
+    dailyData.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    
+    return dailyData;
+  } catch (error) {
+    console.error('Error getting daily data:', error.message);
+    return [];
+  }
+}
+
+// Generate summary with Claude, handling context window limits
+async function generateSummaryWithClaude(dailyData, date) {
+  try {
+    // Calculate approximate token count for the data
+    const dataText = dailyData.map(item => 
+      `${item.timestamp}: ${item.summary || ''} ${item.extracted_text || ''} ${item.user_generated_text || ''}`
+    ).join('\n');
+    
+    // Rough estimate: 1 token ≈ 4 characters
+    const estimatedTokens = dataText.length / 4;
+    const maxTokens = 150000; // Conservative limit for Claude
+    
+    console.log(`Estimated tokens: ${Math.round(estimatedTokens)}`);
+    
+    if (estimatedTokens > maxTokens) {
+      console.log('Data too large for single summary. Generating hourly summaries first...');
+      return await generateHourlySummariesThenDaily(dailyData, date);
+    } else {
+      console.log('Generating direct daily summary...');
+      return await generateDirectDailySummary(dailyData, date);
+    }
+    
+  } catch (error) {
+    console.error('Error in generateSummaryWithClaude:', error.message);
+    return null;
+  }
+}
+
+// Generate hourly summaries first, then combine into daily summary
+async function generateHourlySummariesThenDaily(dailyData, date) {
+  try {
+    console.log('Breaking down data into hourly chunks...');
+    
+    // Group data by hour
+    const hourlyGroups = {};
+    
+    for (const item of dailyData) {
+      const hour = new Date(item.timestamp).getHours();
+      if (!hourlyGroups[hour]) {
+        hourlyGroups[hour] = [];
+      }
+      hourlyGroups[hour].push(item);
+    }
+    
+    console.log(`Found ${Object.keys(hourlyGroups).length} hours with data`);
+    
+    // Generate hourly summaries
+    const hourlySummaries = [];
+    
+    for (const [hour, hourData] of Object.entries(hourlyGroups)) {
+      console.log(`Generating summary for hour ${hour}:00...`);
+      
+      const hourSummary = await generateHourSummary(hourData, hour);
+      if (hourSummary) {
+        hourlySummaries.push({
+          hour: parseInt(hour),
+          summary: hourSummary,
+          itemCount: hourData.length
+        });
+      }
+    }
+    
+    console.log(`Generated ${hourlySummaries.length} hourly summaries`);
+    
+    // Combine hourly summaries into daily summary
+    return await generateDailySummaryFromHourly(hourlySummaries, date);
+    
+  } catch (error) {
+    console.error('Error in generateHourlySummariesThenDaily:', error.message);
+    return null;
+  }
+}
+
+// Generate summary for a single hour
+async function generateHourSummary(hourData, hour) {
+  try {
+    const hourText = hourData.map(item => 
+      `${item.timestamp}: App: ${item.active_app || 'Unknown'}, Summary: ${item.summary || ''}, Text: ${item.extracted_text || ''}, User Text: ${item.user_generated_text || ''}`
+    ).join('\n');
+    
+    const response = await anthropic.messages.create({
+      model: 'claude-3-7-sonnet-20250219',
+      max_tokens: 2000,
+      messages: [
+        {
+          role: 'user',
+          content: `Please create a concise summary of the following hour of screen activity data (${hour}:00-${hour}:59). Focus on:
+- Main applications used
+- Key activities and tasks
+- Any user-generated content (emails, messages, code, documents)
+- Overall productivity patterns
+
+Screen activity data:
+${hourText}
+
+Please provide a structured summary in markdown format.`
+        }
+      ]
+    });
+    
+    return response.content[0].text;
+    
+  } catch (error) {
+    console.error(`Error generating hour ${hour} summary:`, error.message);
+    return null;
+  }
+}
+
+// Generate daily summary from hourly summaries
+async function generateDailySummaryFromHourly(hourlySummaries, date) {
+  try {
+    const hourlySummaryText = hourlySummaries.map(hour => 
+      `## Hour ${hour.hour}:00-${hour.hour}:59 (${hour.itemCount} screenshots)\n${hour.summary}\n`
+    ).join('\n');
+    
+    const response = await anthropic.messages.create({
+      model: 'claude-3-7-sonnet-20250219',
+      max_tokens: 4000,
+      messages: [
+        {
+          role: 'user',
+          content: `Please create a comprehensive daily summary for ${date} based on the following hourly summaries. 
+
+Create a well-structured markdown document that includes:
+1. **Executive Summary** - High-level overview of the day
+2. **Key Activities** - Main tasks and work accomplished
+3. **Applications Used** - Primary tools and software
+4. **Productivity Insights** - Patterns and observations
+5. **User-Generated Content** - Important communications, code, or documents created
+6. **Time Distribution** - How time was spent across different activities
+7. **Hourly Breakdown** - Detailed hour-by-hour activities
+
+Hourly summaries:
+${hourlySummaryText}
+
+Please provide a comprehensive, well-formatted markdown summary.`
+        }
+      ]
+    });
+    
+    return response.content[0].text;
+    
+  } catch (error) {
+    console.error('Error generating daily summary from hourly:', error.message);
+    return null;
+  }
+}
+
+// Generate direct daily summary (when data fits in context window)
+async function generateDirectDailySummary(dailyData, date) {
+  try {
+    const dailyText = dailyData.map(item => 
+      `${item.timestamp}: App: ${item.active_app || 'Unknown'}, Summary: ${item.summary || ''}, Text: ${item.extracted_text || ''}, User Text: ${item.user_generated_text || ''}`
+    ).join('\n');
+    
+    const response = await anthropic.messages.create({
+      model: 'claude-3-7-sonnet-20250219',
+      max_tokens: 4000,
+      messages: [
+        {
+          role: 'user',
+          content: `Please create a comprehensive daily summary for ${date} based on the following screen activity data from ${dailyData.length} screenshots.
+
+Create a well-structured markdown document that includes:
+1. **Executive Summary** - High-level overview of the day
+2. **Key Activities** - Main tasks and work accomplished  
+3. **Applications Used** - Primary tools and software
+4. **Productivity Insights** - Patterns and observations
+5. **User-Generated Content** - Important communications, code, or documents created
+6. **Time Distribution** - How time was spent across different activities
+7. **Timeline** - Key events and transitions throughout the day
+
+Screen activity data:
+${dailyText}
+
+Please provide a comprehensive, well-formatted markdown summary.`
+        }
+      ]
+    });
+    
+    return response.content[0].text;
+    
+  } catch (error) {
+    console.error('Error generating direct daily summary:', error.message);
+    return null;
+  }
+}
+
+// Save summary to file
+async function saveSummaryToFile(summary, date) {
+  try {
+    const filename = `${date}-summary.md`;
+    const filePath = path.join(__dirname, filename);
+    
+    // Add header with metadata
+    const fullContent = `# Daily Summary for ${date}
+
+*Generated on: ${new Date().toISOString()}*
+
+${summary}
+
+---
+*This summary was automatically generated from screen tracking data*
+`;
+    
+    await fs.writeFile(filePath, fullContent, 'utf-8');
+    console.log(`Summary saved to: ${filePath}`);
+    
+  } catch (error) {
+    console.error('Error saving summary to file:', error.message);
   }
 }

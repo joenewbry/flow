@@ -114,6 +114,11 @@ The script will:
 - Start taking screenshots every 60 seconds
 - Process each screenshot with Claude AI for analysis
 - Store results in both JSON files and ChromaDB vector store
+- Provide an interactive menu (type "/" to access) with options to:
+  - Pause/resume tracking
+  - Switch between Claude and OCR modes
+  - Generate daily summaries
+  - Show system status
 
 ### 3. Query Your Screen History
 
@@ -127,7 +132,35 @@ Examples of what you can ask:
 - "Update the README.md based on the work I've done today."
 - "Write a summary for my daily time tracking of what I've worked on including my JIRA tickets"
 
-### 4. MCP Integration with Claude Desktop
+### 4. Generate Daily Summaries
+
+While the system is running, you can generate comprehensive daily summaries:
+
+1. **Access the Menu**: Type "/" while the system is running to open the interactive menu
+2. **Generate Summary**: Press "d" to start the daily summary generation
+3. **Select Date**: Enter a date in YYYY-MM-DD format, or press Enter for today
+4. **Automatic Processing**: The system will:
+   - Collect all screenshot analysis data for the specified date
+   - Check if the data fits within Claude's context window
+   - If too large, generate hourly summaries first, then combine them
+   - Create a comprehensive markdown summary
+   - Save it as `YYYY-MM-DD-summary.md`
+
+**Summary Features:**
+- **Executive Summary**: High-level overview of the day
+- **Key Activities**: Main tasks and work accomplished
+- **Applications Used**: Primary tools and software
+- **Productivity Insights**: Patterns and observations
+- **User-Generated Content**: Important communications, code, or documents created
+- **Time Distribution**: How time was spent across different activities
+- **Timeline/Hourly Breakdown**: Detailed chronological activities
+
+**Context Window Handling:**
+- For days with extensive data, the system automatically generates hourly summaries first
+- These are then combined into a comprehensive daily summary
+- This ensures no data is lost due to context window limitations
+
+### 5. MCP Integration with Claude Desktop
 
 To connect with Claude Desktop via MCP:
 
