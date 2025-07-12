@@ -1,4 +1,15 @@
 {
+  "name": "screen-tracker-desktop",
+  "version": "1.0.0",
+  "description": "Desktop app for screen tracking and analysis",
+  "main": "main.js",
+
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder",
+    "track": "node chroma-track.js"
+  },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.55.0",
     "@chroma-core/default-embed": "^0.1.8",
@@ -6,9 +17,25 @@
     "chromadb-default-embed": "^2.14.0",
     "date-fns": "^4.1.0",
     "dotenv": "^16.5.0",
+    "electron": "^28.0.0",
     "package.json": "^2.0.1",
     "screenshot-desktop": "^1.15.1",
     "tesseract.js": "^5.0.4"
   },
-  "type": "module"
+  "devDependencies": {
+    "electron-builder": "^24.0.0"
+  },
+  "build": {
+    "appId": "com.screentracker.desktop",
+    "productName": "Screen Tracker",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!screenshots/**/*",
+      "!screenhistory/**/*",
+      "!dist/**/*"
+    ]
+  }
 }
