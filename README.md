@@ -2,15 +2,17 @@
 
 [![GitHub stars](https://img.shields.io/github/stars/yourusername/flow.svg?style=social&label=Star)](https://github.com/yourusername/flow)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://python.org)
+[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://python.org)
 
-> A powerful CLI tool for screen activity tracking, AI-powered analysis, and content generation using ChromaDB and Model Context Protocol (MCP).
+> An automated screen activity tracking tool that continuously captures screenshots, extracts text via OCR, and stores everything in ChromaDB for semantic search through Claude Desktop via Model Context Protocol (MCP).
 
 ## Installation
 
 ### Prerequisites
 - **Python 3.10+** (tested with Python 3.13.7)
+- **Node.js 16+** (for MCP server)
 - **Tesseract OCR** (install via system package manager)
+- **ChromaDB server** (running on localhost:8000)
 - **Screen capture permissions** (macOS: System Preferences > Security & Privacy > Privacy > Screen Recording)
 
 1. **Clone the repository**
@@ -19,16 +21,7 @@
    cd flow
    ```
 
-2. **Set up ChromaDB environment**
-   ```bash
-   cd chroma
-   python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   pip install -r chroma-requirements.txt
-   cd ..
-   ```
-
-3. **Set up Refinery tracking environment**
+2. **Set up Python environment for screen tracking**
    ```bash
    cd refinery
    python -m venv .venv
@@ -37,11 +30,22 @@
    cd ..
    ```
 
-4. **Set up MCP server environment**
+3. **Set up MCP server environment**
    ```bash
    cd mcp-flow-node
    npm install
    cd ..
+   ```
+
+4. **Start ChromaDB server** (in a separate terminal)
+   ```bash
+   chroma run --host localhost --port 8000
+   ```
+
+5. **Run the Flow tracker**
+   ```bash
+   cd refinery
+   python run.py
    ```
 
 ### Claude Desktop MCP Configuration
@@ -67,30 +71,36 @@ For detailed MCP setup instructions, see the [Claude Desktop MCP guide](https://
 ## Architecture Guide
 
 ```
-Flow CLI
-├── Screen Detection & OCR
-├── ChromaDB Vector Store
-├── MCP Server (stdio)
-├── Summary Tools (via MCP)
-├── Sprout Generator
-└── CLI Interface
+Flow System
+├── refinery/run.py (Screenshot Capture & OCR)
+├── ChromaDB Server (Vector Storage)
+├── mcp-flow-node/server.js (MCP Interface)
+└── Claude Desktop (Search Interface)
 ```
 
-**Multi-Screen Support:**
-- Flow automatically detects all available screens
+**Screen Tracking Process:**
+- Flow automatically detects all available monitors/displays
 - Screen naming convention: `screen_0` (primary), `screen_1` (secondary), `screen_N` (additional)
-- Screenshots saved as: `{timestamp}_{screen_name}.png`
-- OCR data saved as: `{timestamp}_{screen_name}.json`
+- Screenshots captured every 60 seconds by default
+- OCR text extraction via Tesseract happens in background threads
+- Data stored as `{timestamp}_{screen_name}.json` files
 
-**Background Processing:**
-- Screenshots are captured every minute by default
-- OCR processing happens in background threads to avoid blocking
-- All data is stored in ChromaDB collection "screenshots" for search and analysis
+**ChromaDB Integration:**
+- All OCR text content stored in "screenshots" collection
+- Semantic embeddings enable intelligent search across captured content
+- Both new captures and existing OCR files are automatically indexed
+- HTTP client connects to ChromaDB server on localhost:8000
 
-**Data Storage:**
-- Screenshots: Processed in memory only (not saved to disk)
-- OCR data: `refinery/data/ocr/` (JSON files with extracted text)
-- ChromaDB: Vector database for semantic search across all captured content
+**MCP Server Features:**
+- Provides `search-screenshots` tool for semantic text search
+- Supports date range filtering and result limiting
+- Integrates with Claude Desktop for natural language queries
+- Returns relevant screen content with metadata and similarity scores
+
+**Data Flow:**
+1. Screenshots captured → OCR processed → JSON saved → ChromaDB indexed
+2. Claude queries → MCP server → ChromaDB search → Results returned
+3. All processing happens automatically in the background
 
 ---
 
