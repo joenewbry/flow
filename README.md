@@ -1,10 +1,9 @@
-# Flow CLI
+# Flow MCP
 
 [![GitHub stars](https://img.shields.io/github/stars/yourusername/flow.svg?style=social&label=Star)](https://github.com/yourusername/flow)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://python.org)
 
-> An automated screen activity tracking tool that continuously captures screenshots, extracts text via OCR, and stores everything in ChromaDB for semantic search through Claude Desktop via Model Context Protocol (MCP).
 
 ## Installation
 
@@ -37,9 +36,9 @@
    cd ..
    ```
 
-4. **Start ChromaDB server** (in a separate terminal)
+4. **Start ChromaDB server in /refinery folder** (in a separate terminal)
    ```bash
-   chroma run --host localhost --port 8000
+   cd refinery && chroma run --host localhost --port 8000
    ```
 
 5. **Run the Flow tracker**
