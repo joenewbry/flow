@@ -22,6 +22,7 @@ import json
 import platform
 import threading
 import time
+import requests
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, List
@@ -122,11 +123,55 @@ class FlowRunner:
             logger.info(f"[{timestamp}] OCR data saved as {ocr_filename}")
             logger.info(f"[{timestamp}] Screen: {screen_name}, Text: {len(text)} chars, Words: {result['word_count']}")
             
-            # Store in ChromaDB (async operation in background)
-            asyncio.create_task(self.store_in_chroma(result))
+            # Store in ChromaDB (synchronous operation in background thread)
+            self.store_in_chroma_sync(result)
             
         except Exception as error:
             logger.error(f"OCR error for {screen_name}: {error}")
+    
+    def store_in_chroma_sync(self, ocr_data: Dict[str, Any]):
+        """Store OCR data in ChromaDB collection 'screenshots' (synchronous version for background threads)."""
+        try:
+            
+            # Prepare content for embedding
+            content = f"Screen: {ocr_data['screen_name']} Text: {ocr_data['text']}"
+            
+            # Prepare metadata
+            metadata = {
+                "timestamp": ocr_data["timestamp"],
+                "screen_name": ocr_data["screen_name"],
+                "text_length": ocr_data["text_length"],
+                "word_count": ocr_data["word_count"],
+                "source": ocr_data["source"],
+                "screenshot_path": ocr_data.get("screenshot_path", ""),
+                "extracted_text": ocr_data["text"],
+                "task_category": "screenshot_ocr"
+            }
+            
+            # Store in ChromaDB using HTTP API (synchronous)
+            doc_id = ocr_data["timestamp"] + "_" + ocr_data["screen_name"]
+            
+            # Create the document payload
+            payload = {
+                "documents": [content],
+                "metadatas": [metadata],
+                "ids": [doc_id]
+            }
+            
+            # Make HTTP request to ChromaDB
+            response = requests.post(
+                "http://localhost:8000/api/v1/collections/screenshots/add",
+                json=payload,
+                headers={"Content-Type": "application/json"}
+            )
+            
+            if response.status_code == 200:
+                logger.debug(f"Stored OCR data in ChromaDB screenshots collection: {ocr_data['timestamp']}")
+            else:
+                logger.error(f"Failed to store in ChromaDB: {response.status_code} - {response.text}")
+            
+        except Exception as error:
+            logger.error(f"Error storing in ChromaDB: {error}")
     
     async def store_in_chroma(self, ocr_data: Dict[str, Any]):
         """Store OCR data in ChromaDB collection 'screenshots'."""
