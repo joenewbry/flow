@@ -327,7 +327,7 @@ def chroma_start(ctx):
         
         # Try to start ChromaDB server
         process = subprocess.Popen(
-            ['chroma', 'run', '--host', 'localhost', '--port', '8000', '--path', 'data/chroma'],
+            ['chroma', 'run', '--host', 'localhost', '--port', '8000', '--path', 'chroma'],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )

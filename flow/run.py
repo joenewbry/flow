@@ -23,6 +23,7 @@ import platform
 import threading
 import time
 import requests
+import glob
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, List
@@ -198,6 +199,111 @@ class FlowRunner:
         except Exception as error:
             logger.error(f"Error storing in ChromaDB: {error}")
     
+    async def load_existing_ocr_data(self):
+        """Load existing OCR data from flow/data/ocr directory into ChromaDB."""
+        try:
+            logger.info("Checking for existing OCR data to load...")
+            
+            # Get all JSON files from the OCR data directory
+            ocr_files = glob.glob(str(self.ocr_data_dir / "*.json"))
+            
+            if not ocr_files:
+                logger.info("No existing OCR data found")
+                return
+            
+            logger.info(f"Found {len(ocr_files)} existing OCR files to process")
+            
+            # Initialize ChromaDB client for bulk operations
+            import chromadb
+            client = chromadb.HttpClient(host="localhost", port=8000)
+            
+            # Get or create the screenshots collection
+            collection = client.get_or_create_collection(
+                name="screenshots",
+                metadata={"description": "Screenshot OCR data"}
+            )
+            
+            # Get existing document IDs to avoid duplicates
+            try:
+                existing_ids = set()
+                # Try to get existing documents (this may fail if collection is empty)
+                try:
+                    result = collection.get()
+                    if result and result.get('ids'):
+                        existing_ids = set(result['ids'])
+                        logger.info(f"Found {len(existing_ids)} existing documents in ChromaDB")
+                except Exception:
+                    # Collection might be empty, which is fine
+                    logger.info("ChromaDB collection is empty or new")
+            except Exception as error:
+                logger.warning(f"Could not check existing documents: {error}")
+                existing_ids = set()
+            
+            # Process files in batches to avoid memory issues
+            batch_size = 50
+            total_loaded = 0
+            total_skipped = 0
+            
+            for i in range(0, len(ocr_files), batch_size):
+                batch_files = ocr_files[i:i + batch_size]
+                
+                documents = []
+                metadatas = []
+                ids = []
+                
+                for file_path in batch_files:
+                    try:
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            ocr_data = json.load(f)
+                        
+                        # Create document ID
+                        doc_id = ocr_data["timestamp"] + "_" + ocr_data["screen_name"]
+                        
+                        # Skip if already exists
+                        if doc_id in existing_ids:
+                            total_skipped += 1
+                            continue
+                        
+                        # Prepare content for embedding
+                        content = f"Screen: {ocr_data['screen_name']} Text: {ocr_data['text']}"
+                        
+                        # Prepare metadata
+                        metadata = {
+                            "timestamp": ocr_data["timestamp"],
+                            "screen_name": ocr_data["screen_name"],
+                            "text_length": ocr_data["text_length"],
+                            "word_count": ocr_data["word_count"],
+                            "source": ocr_data["source"],
+                            "extracted_text": ocr_data["text"],
+                            "task_category": "screenshot_ocr"
+                        }
+                        
+                        documents.append(content)
+                        metadatas.append(metadata)
+                        ids.append(doc_id)
+                        
+                    except Exception as error:
+                        logger.error(f"Error processing file {file_path}: {error}")
+                        continue
+                
+                # Bulk add documents to ChromaDB
+                if documents:
+                    try:
+                        collection.add(
+                            documents=documents,
+                            metadatas=metadatas,
+                            ids=ids
+                        )
+                        total_loaded += len(documents)
+                        logger.info(f"Loaded batch of {len(documents)} documents (progress: {i + len(batch_files)}/{len(ocr_files)})")
+                    except Exception as error:
+                        logger.error(f"Error adding batch to ChromaDB: {error}")
+            
+            logger.info(f"Bulk loading complete: {total_loaded} documents loaded, {total_skipped} skipped (already existed)")
+            
+        except Exception as error:
+            logger.error(f"Error in bulk loading existing OCR data: {error}")
+    
     async def capture_all_screens(self):
         """Capture screenshots from all available screens."""
         try:
@@ -245,6 +351,9 @@ class FlowRunner:
             
             # Initialize ChromaDB
             await chroma_client.init()
+            
+            # Load existing OCR data into ChromaDB
+            await self.load_existing_ocr_data()
             
             # Detect screens
             await screen_detector.detect_screens()

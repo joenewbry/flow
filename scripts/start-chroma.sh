@@ -7,7 +7,7 @@ set -e
 # Default configuration
 CHROMA_PORT=${CHROMA_PORT:-8000}
 CHROMA_HOST=${CHROMA_HOST:-localhost}
-CHROMA_DATA_DIR=${CHROMA_DATA_DIR:-./data/chroma}
+CHROMA_DATA_DIR=${CHROMA_DATA_DIR:-./chroma}
 
 # Create data directory if it doesn't exist
 mkdir -p "$CHROMA_DATA_DIR"
