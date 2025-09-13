@@ -54,8 +54,8 @@
 2. **Set up ChromaDB environment**
    ```bash
    cd chroma
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   python -m venv .venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
    pip install -r chroma-requirements.txt
    cd ..
    ```
@@ -63,8 +63,8 @@
 3. **Set up Flow tracking environment**
    ```bash
    cd flow
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   python -m venv .venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
    pip install -r flow-requirements.txt
    cd ..
    ```
@@ -72,8 +72,8 @@
 4. **Set up MCP server environment**
    ```bash
    cd mcp-flow
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   python -m venv .venv
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
    pip install -r flow-mcp-requirements.txt
    cd ..
    ```
@@ -99,7 +99,7 @@ All three virtual environments require **Python 3.10+** (tested with Python 3.13
 1. **Start ChromaDB server**
    ```bash
    cd chroma
-   source venv/bin/activate
+   source .venv/bin/activate
    chroma run --host localhost --port 8000
    cd ..
    ```
@@ -108,7 +108,7 @@ All three virtual environments require **Python 3.10+** (tested with Python 3.13
 2. **Start screen tracking**
    ```bash
    cd flow
-   source venv/bin/activate
+   source .venv/bin/activate
    python run.py
    cd ..
    ```
@@ -116,7 +116,7 @@ All three virtual environments require **Python 3.10+** (tested with Python 3.13
 3. **Start MCP server** (for Claude Desktop integration)
    ```bash
    cd mcp-flow
-   source venv/bin/activate
+   source .venv/bin/activate
    python flow_mcp_server.py
    cd ..
    ```
@@ -149,9 +149,16 @@ To verify everything is working correctly:
    {
      "mcpServers": {
        "flow": {
-         "command": "python",
-         "args": ["/Users/joe/dev/flow/mcp-flow/flow_mcp_server.py"],
-         "cwd": "/Users/joe/dev/flow/mcp-flow"
+         "command": "/Users/joe/dev/flow/mcp-flow/.venv/bin/python",
+         "args": [
+           "-u",
+           "/Users/joe/dev/flow/mcp-flow/flow_mcp_server.py"
+         ],
+         "cwd": "/Users/joe/dev/flow/mcp-flow",
+         "env": {
+           "PYTHONPATH": "/Users/joe/dev/flow/src",
+           "PYTHONUNBUFFERED": "1"
+         }
        }
      }
    }
@@ -182,11 +189,15 @@ To verify everything is working correctly:
    {
      "mcpServers": {
        "flow": {
-         "command": "python",
-         "args": ["/path/to/your/flow/mcp-flow/flow_mcp_server.py"],
+         "command": "/path/to/your/flow/mcp-flow/.venv/bin/python",
+         "args": [
+           "-u",
+           "/path/to/your/flow/mcp-flow/flow_mcp_server.py"
+         ],
          "cwd": "/path/to/your/flow/mcp-flow",
          "env": {
-           "PYTHONPATH": "/path/to/your/flow/src"
+           "PYTHONPATH": "/path/to/your/flow/src",
+           "PYTHONUNBUFFERED": "1"
          }
        }
      }
@@ -281,10 +292,6 @@ Options:
 ./scripts/start-mcp-server.sh
 ```
 
-#### Start HTTP Bridge
-```bash
-./scripts/start-mcp-http-bridge.sh
-```
 
 ## 🔧 Configuration
 
@@ -315,10 +322,8 @@ LOG_LEVEL=INFO
 Flow CLI
 ├── Screen Detection & OCR
 ├── ChromaDB Vector Store
-├── MCP Servers
-│   ├── Native MCP Server (stdio)
-│   └── HTTP Bridge (REST API)
-├── Summary Service
+├── MCP Server (stdio)
+├── Summary Tools (via MCP)
 ├── Sprout Generator
 └── CLI Interface
 ```

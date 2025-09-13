@@ -57,8 +57,11 @@ build/
 
 # Virtual environments
 venv/
+.venv/
 */venv/
+*/.venv/
 */*/venv/
+*/*/.venv/
 env/
 */env/
 */*/env/
