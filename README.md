@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://python.org)
 
-## Simple Vector-Based Screen History Search
+## Vector-based Screen History MCP server
 
 ![Example Usage](images/Example%20Usage.png)
 I wanted to have a simple history of what I've worked on. A year from now I'd like to be able to know what things I've been doing and at work people ask me for details on how to setup things I've long since forgotten about. 
