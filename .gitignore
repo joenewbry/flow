@@ -36,7 +36,6 @@ chroma-data/
 chroma.sqlite3
 chroma/chroma.sqlite3
 screenhistory/
-screenshots/
 
 # IDE and editor files
 .vscode/

@@ -132,9 +132,9 @@ To verify everything is working correctly:
    ```
 
 2. **Test Flow tracking**
-   - Start the Flow runner and check that screenshots are being saved to `flow/data/screenshots/`
-   - Verify OCR data is being saved to `flow/data/ocr/`
+   - Start the Flow runner and verify OCR data is being saved to `flow/data/ocr/`
    - Check logs for successful screenshot capture and OCR processing
+   - Note: Screenshots are processed in memory and not saved to disk
 
 3. **Test MCP server with Claude Desktop**
    
@@ -238,7 +238,7 @@ To verify everything is working correctly:
 - All data is stored in ChromaDB collection "screenshots" for search and analysis
 
 **Data Storage:**
-- Screenshots: `flow/data/screenshots/` (temporarily stored, deleted after OCR)
+- Screenshots: Processed in memory only (not saved to disk)
 - OCR data: `flow/data/ocr/` (JSON files with extracted text)
 - ChromaDB: Vector database for semantic search across all captured content
 

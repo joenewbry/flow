@@ -44,7 +44,6 @@ class FlowRunner:
     def __init__(self, capture_interval: int = 60, max_concurrent_ocr: int = 4):
         self.capture_interval = capture_interval  # seconds
         self.max_concurrent_ocr = max_concurrent_ocr
-        self.screenshots_dir = Path("data/screenshots")
         self.ocr_data_dir = Path("data/ocr")
         
         self.is_running = False
@@ -85,11 +84,10 @@ class FlowRunner:
     
     async def ensure_directories(self):
         """Ensure output directories exist."""
-        for directory in [self.screenshots_dir, self.ocr_data_dir]:
-            directory.mkdir(parents=True, exist_ok=True)
-            logger.debug(f"Ensured directory exists: {directory}")
+        self.ocr_data_dir.mkdir(parents=True, exist_ok=True)
+        logger.debug(f"Ensured directory exists: {self.ocr_data_dir}")
     
-    def process_ocr_background(self, image: Image.Image, screen_name: str, timestamp: str, screenshot_path: Path):
+    def process_ocr_background(self, image: Image.Image, screen_name: str, timestamp: str):
         """Process OCR in background thread."""
         try:
             logger.info(f"[{timestamp}] Processing OCR on thread {threading.current_thread().ident}")
@@ -108,8 +106,7 @@ class FlowRunner:
                 "text": text,
                 "text_length": len(text),
                 "word_count": len([word for word in text.split() if word.strip()]),
-                "source": "flow-runner",
-                "screenshot_path": str(screenshot_path)
+                "source": "flow-runner"
             }
             
             # Save OCR data to JSON file
@@ -153,7 +150,6 @@ class FlowRunner:
                 "text_length": ocr_data["text_length"],
                 "word_count": ocr_data["word_count"],
                 "source": ocr_data["source"],
-                "screenshot_path": ocr_data.get("screenshot_path", ""),
                 "extracted_text": ocr_data["text"],
                 "task_category": "screenshot_ocr"
             }
@@ -185,7 +181,6 @@ class FlowRunner:
                 "text_length": ocr_data["text_length"],
                 "word_count": ocr_data["word_count"],
                 "source": ocr_data["source"],
-                "screenshot_path": ocr_data.get("screenshot_path", ""),
                 "extracted_text": ocr_data["text"],
                 "task_category": "screenshot_ocr"
             }
@@ -223,17 +218,10 @@ class FlowRunner:
             # Process each capture
             for screen_info, image in screen_captures:
                 try:
-                    # Save screenshot
-                    timestamp_str = timestamp.replace(':', '-').replace('.', '-')
-                    screenshot_filename = f"{timestamp_str}_{screen_info.name}.png"
-                    screenshot_path = self.screenshots_dir / screenshot_filename
-                    image.save(screenshot_path, "PNG")
-                    logger.debug(f"Screenshot saved: {screenshot_path}")
-                    
-                    # Start background OCR processing
+                    # Start background OCR processing (no screenshot saving)
                     ocr_thread = threading.Thread(
                         target=self.process_ocr_background,
-                        args=(image, screen_info.name, timestamp, screenshot_path)
+                        args=(image, screen_info.name, timestamp)
                     )
                     ocr_thread.daemon = True
                     ocr_thread.start()
@@ -250,7 +238,6 @@ class FlowRunner:
         try:
             logger.info("Starting Flow Runner service...")
             logger.info(f"Capture interval: {self.capture_interval} seconds")
-            logger.info(f"Screenshots directory: {self.screenshots_dir}")
             logger.info(f"OCR data directory: {self.ocr_data_dir}")
             logger.info(f"Max concurrent OCR: {self.max_concurrent_ocr}")
             
@@ -297,7 +284,6 @@ class FlowRunner:
             "running": self.is_running,
             "last_capture": datetime.now().isoformat(),
             "interval": self.capture_interval,
-            "screenshots_dir": str(self.screenshots_dir),
             "ocr_data_dir": str(self.ocr_data_dir),
             "available_screens": len(screen_detector.screens) if screen_detector.screens else 0
         }
