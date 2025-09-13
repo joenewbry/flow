@@ -53,5 +53,13 @@ dist/
 build/
 *.tgz
 
+# Virtual environments
+venv/
+*/venv/
+*/*/venv/
+env/
+*/env/
+*/*/env/
+
 # Workspace
 workspace/

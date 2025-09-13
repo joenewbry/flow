@@ -196,8 +196,8 @@ class OCRProcessor:
             
             # Store in ChromaDB
             await chroma_client.add_document(
-                collection_name="screen_history",
-                doc_id=ocr_data["timestamp"],
+                collection_name="screenshots",
+                doc_id=ocr_data["timestamp"] + "_" + ocr_data["screen_name"],
                 content=content,
                 metadata=metadata
             )
