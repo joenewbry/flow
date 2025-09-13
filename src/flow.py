@@ -21,7 +21,6 @@ from dotenv import load_dotenv
 
 from lib.chroma_client import chroma_client
 from lib.screen_detection import screen_detector
-from lib.ollama_client import ollama_client
 from ocr_processor import ocr_processor
 from summary_service import SummaryService
 from sprout_generator import SproutGenerator
@@ -73,123 +72,30 @@ def cli(ctx, verbose, config):
 @cli.command()
 @click.argument('query', required=False)
 @click.option('-c', '--context', help='Additional context for the conversation')
-@click.option('-m', '--model', default='gemma2:9b', help='Specify AI model to use')
 @click.pass_context
-def ask(ctx, query, context, model):
-    """Start interactive chat interface with tool integration."""
-    async def _ask():
-        try:
-            click.echo("🤖 Flow Chat Interface (Powered by Ollama)")
-            
-            # Check if Ollama is running
-            if not ollama_client.health_check():
-                click.echo("❌ Ollama service is not running")
-                click.echo("💡 Start Ollama with: brew services start ollama")
-                sys.exit(1)
-            
-            # Check if model is available
-            if not ollama_client.is_model_available(model):
-                click.echo(f"❌ Model '{model}' is not available")
-                click.echo("📥 Available models:")
-                models = ollama_client.list_models()
-                for m in models:
-                    click.echo(f"  • {m['name']}")
-                click.echo(f"💡 Download model with: ollama pull {model}")
-                sys.exit(1)
-            
-            if query:
-                # Single query mode
-                click.echo(f"🤖 Processing your query with {model}: {query}")
-                
-                # Prepare system message
-                system_msg = """You are Flow's AI assistant. You help users understand and search through their digital activity data. 
-                You have access to screen tracking data, summaries, and can help with analysis.
-                
-                Keep responses concise but helpful. If you need to search for specific data, suggest using 'flow find' command."""
-                
-                # Add context if provided
-                full_query = query
-                if context:
-                    full_query = f"Context: {context}\n\nQuery: {query}"
-                
-                # Generate response using Ollama
-                response = ollama_client.generate(
-                    model=model,
-                    prompt=full_query,
-                    system=system_msg
-                )
-                
-                click.echo("\n📝 Response:")
-                click.echo("─" * 60)
-                click.echo(response)
-                click.echo("─" * 60)
-                
-            else:
-                # Interactive mode
-                click.echo(f"💬 Starting interactive chat with {model}")
-                click.echo("💡 Type 'exit' to quit, 'help' for commands")
-                click.echo("─" * 60)
-                
-                conversation_history = []
-                
-                while True:
-                    try:
-                        user_input = input("\n🔷 You: ").strip()
-                        
-                        if user_input.lower() in ['exit', 'quit', 'q']:
-                            click.echo("👋 Goodbye!")
-                            break
-                        
-                        if user_input.lower() == 'help':
-                            click.echo("💡 Available commands:")
-                            click.echo("  • exit/quit/q - Exit chat")
-                            click.echo("  • help - Show this help")
-                            click.echo("  • clear - Clear conversation history")
-                            continue
-                        
-                        if user_input.lower() == 'clear':
-                            conversation_history = []
-                            click.echo("🧹 Conversation history cleared")
-                            continue
-                        
-                        if not user_input:
-                            continue
-                        
-                        # Add user message to history
-                        conversation_history.append({"role": "user", "content": user_input})
-                        
-                        # Keep only last 10 messages for context
-                        if len(conversation_history) > 10:
-                            conversation_history = conversation_history[-10:]
-                        
-                        click.echo("🤖 Thinking...")
-                        
-                        # Generate response
-                        response = ollama_client.chat(
-                            model=model,
-                            messages=[
-                                {"role": "system", "content": "You are Flow's AI assistant helping with digital activity data analysis."},
-                                *conversation_history
-                            ]
-                        )
-                        
-                        # Add assistant response to history
-                        conversation_history.append({"role": "assistant", "content": response})
-                        
-                        click.echo(f"🤖 Flow: {response}")
-                        
-                    except KeyboardInterrupt:
-                        click.echo("\n👋 Chat interrupted. Goodbye!")
-                        break
-                    except EOFError:
-                        click.echo("\n👋 Goodbye!")
-                        break
-                        
-        except Exception as error:
-            click.echo(f"❌ Error: {error}")
-            sys.exit(1)
-    
-    asyncio.run(_ask())
+def ask(ctx, query, context):
+    """Search and query your activity data."""
+    if query:
+        # Perform a search using the find command
+        click.echo(f"🔍 Searching for: \"{query}\"")
+        if context:
+            click.echo(f"📝 Context: {context}")
+        
+        # Use the existing find functionality
+        from click.testing import CliRunner
+        runner = CliRunner()
+        result = runner.invoke(find, [query])
+        click.echo(result.output)
+    else:
+        click.echo("🤖 Flow Query Interface")
+        click.echo("💡 Search your activity data using natural language")
+        click.echo("")
+        click.echo("Available commands:")
+        click.echo("  flow find 'your search query'")
+        click.echo("  flow summarize today")
+        click.echo("  flow sprout --content 'your content'")
+        click.echo("")
+        click.echo("For AI-powered analysis, use Claude Desktop with MCP integration")
 
 
 @cli.command()

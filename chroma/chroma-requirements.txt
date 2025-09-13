@@ -1,0 +1,11 @@
+# ChromaDB Server Requirements
+
+# ChromaDB for vector search
+chromadb>=0.4.22
+
+# Core dependencies for ChromaDB
+pydantic>=2.5.0
+httpx>=0.26.0
+
+# Logging
+structlog>=23.2.0

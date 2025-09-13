@@ -15,7 +15,6 @@ from typing import Any, Dict, List, Optional, Tuple
 from dotenv import load_dotenv
 
 from lib.chroma_client import chroma_client
-from lib.ollama_client import ollama_client
 
 # Load environment variables
 load_dotenv()
@@ -25,23 +24,13 @@ logger = logging.getLogger(__name__)
 
 class SummaryService:
     def __init__(self):
-        self.ollama_model = "gemma2:9b"
         self.screenhistory_dir = Path("data/screen_history")
         self.summaries_dir = Path("data/summaries")
-        self.max_tokens_per_summary = 8000  # Conservative limit for Ollama
-        self.chars_per_token = 4  # Rough estimate
-        self.max_chars_per_summary = self.max_tokens_per_summary * self.chars_per_token
+        self.max_chars_per_summary = 10000  # Conservative limit for text summarization
         self.last_summary_check = None  # Track when we last checked for summaries
         
     async def init(self):
         """Initialize the summary service."""
-        # Check if Ollama is running and model is available
-        if not ollama_client.health_check():
-            raise ValueError("Ollama service is not running. Start with: brew services start ollama")
-        
-        if not ollama_client.is_model_available(self.ollama_model):
-            raise ValueError(f"Model '{self.ollama_model}' is not available. Download with: ollama pull {self.ollama_model}")
-        
         # Ensure directories exist
         await self._ensure_summary_dirs()
         
@@ -169,38 +158,70 @@ class SummaryService:
         return data_entries
     
     async def _generate_summary_with_ai(self, content: str, summary_type: str, time_info: str) -> str:
-        """Generate summary using AI."""
+        """Generate summary using text analysis (no AI required)."""
         try:
-            prompt = f"""
-You are analyzing screen activity data for a {summary_type} summary covering {time_info}.
-
-Please analyze the following screen capture data and provide a comprehensive summary:
-
-{content}
-
-Provide a summary that includes:
-1. **Overview**: Brief description of main activities
-2. **Applications Used**: Primary applications and tools
-3. **Key Activities**: Important tasks or workflows identified
-4. **Productivity Insights**: Patterns, focus areas, or notable behaviors
-5. **Time Distribution**: How time was spent across different activities
-
-Keep the summary concise but informative, focusing on actionable insights.
-"""
-
-            system_msg = "You are Flow's AI assistant specialized in analyzing screen activity data and generating insightful summaries."
-
-            response = await asyncio.to_thread(
-                ollama_client.generate,
-                model=self.ollama_model,
-                prompt=prompt,
-                system=system_msg
-            )
+            # Parse the content to extract useful information
+            import json
+            entries = []
+            for line in content.split('\n'):
+                if line.strip() and not line.startswith('='):
+                    try:
+                        entry = json.loads(line)
+                        entries.append(entry)
+                    except json.JSONDecodeError:
+                        continue
             
-            return response
+            if not entries:
+                return f"No activity data found for {summary_type} summary covering {time_info}."
+            
+            # Extract basic statistics
+            apps = {}
+            total_chars = 0
+            total_words = 0
+            activities = []
+            
+            for entry in entries:
+                app = entry.get('active_app', 'Unknown')
+                apps[app] = apps.get(app, 0) + 1
+                
+                text = entry.get('text', '')
+                total_chars += len(text)
+                total_words += len(text.split())
+                
+                summary = entry.get('summary', '')
+                if summary:
+                    activities.append(summary)
+            
+            # Create simple text summary
+            summary_parts = [
+                f"# {summary_type.title()} Summary - {time_info}",
+                "",
+                "## Overview",
+                f"- Total entries: {len(entries)}",
+                f"- Text captured: {total_chars:,} characters, {total_words:,} words",
+                "",
+                "## Applications Used",
+            ]
+            
+            # Top 5 most used applications
+            top_apps = sorted(apps.items(), key=lambda x: x[1], reverse=True)[:5]
+            for app, count in top_apps:
+                summary_parts.append(f"- {app}: {count} entries")
+            
+            if activities:
+                summary_parts.extend([
+                    "",
+                    "## Key Activities",
+                ])
+                # Show first few unique activities
+                unique_activities = list(set(activities))[:5]
+                for activity in unique_activities:
+                    summary_parts.append(f"- {activity}")
+            
+            return "\n".join(summary_parts)
             
         except Exception as e:
-            logger.error(f"AI summary generation failed: {e}")
+            logger.error(f"Summary generation failed: {e}")
             return f"Summary generation failed: {str(e)}"
     
     def _truncate_content_for_ai(self, content: str, max_chars: int = None) -> str:

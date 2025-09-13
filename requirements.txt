@@ -1,0 +1,36 @@
+# Flow CLI - Python Dependencies
+
+# Core dependencies
+python-dotenv>=1.0.0
+click>=8.1.7
+markdown>=3.5.1
+
+# ChromaDB for vector search
+chromadb>=0.4.22
+pydantic>=2.5.0
+httpx>=0.26.0
+
+# Screenshot and image processing
+pillow>=10.1.0
+pyscreenshot>=3.1
+pyautogui>=0.9.54
+
+# OCR processing
+pytesseract>=0.3.10
+opencv-python>=4.8.1.78
+
+# Data processing
+pandas>=2.1.4
+numpy>=1.24.4
+
+# Async and web
+aiohttp>=3.9.1
+fastapi>=0.108.0
+uvicorn[standard]>=0.24.0
+
+# Logging and monitoring
+structlog>=23.2.0
+psutil>=5.9.6
+
+# MCP (Model Context Protocol) - Optional
+# mcp>=1.0.0  # Requires Python 3.10+

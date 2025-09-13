@@ -52,3 +52,6 @@ screenshots/
 dist/
 build/
 *.tgz
+
+# Workspace
+workspace/
