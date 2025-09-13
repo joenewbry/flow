@@ -33,6 +33,8 @@ logs
 
 # Vector database and tracking data
 chroma-data/
+chroma.sqlite3
+chroma/chroma.sqlite3
 screenhistory/
 screenshots/
 

@@ -22,7 +22,6 @@ from dotenv import load_dotenv
 from lib.chroma_client import chroma_client
 from lib.screen_detection import screen_detector
 from ocr_processor import ocr_processor
-from summary_service import SummaryService
 from sprout_generator import SproutGenerator
 
 # Load environment variables
@@ -38,7 +37,6 @@ logger = logging.getLogger(__name__)
 
 class FlowCLI:
     def __init__(self):
-        self.summary_service = SummaryService()
         self.sprout_generator = SproutGenerator()
         self.verbose = False
         
@@ -92,7 +90,6 @@ def ask(ctx, query, context):
         click.echo("")
         click.echo("Available commands:")
         click.echo("  flow find 'your search query'")
-        click.echo("  flow summarize today")
         click.echo("  flow sprout --content 'your content'")
         click.echo("")
         click.echo("For AI-powered analysis, use Claude Desktop with MCP integration")
@@ -142,77 +139,6 @@ def find(ctx, query, limit, search_type, context, output_json):
     asyncio.run(_find())
 
 
-@cli.command()
-@click.argument('timeframe', required=False, default='today')
-@click.option('-s', '--start', help='Start date (YYYY-MM-DD)')
-@click.option('-e', '--end', help='End date (YYYY-MM-DD)')
-@click.option('-g', '--granularity', type=click.Choice(['hourly', 'daily', 'monthly', 'yearly']),
-              help='Summary granularity')
-@click.option('--force', is_flag=True, help='Force regeneration of existing summaries')
-@click.option('--catch-up', is_flag=True, help='Generate missing summaries (catch-up mode)')
-@click.option('--list', 'list_summaries', is_flag=True, help='List existing summaries')
-@click.option('--stats', is_flag=True, help='Show summary statistics')
-@click.pass_context
-def summarize(ctx, timeframe, start, end, granularity, force, catch_up, list_summaries, stats):
-    """Generate summaries of your activity data."""
-    async def _summarize():
-        try:
-            await flow_cli.summary_service.init()
-            
-            # Handle catch-up mode
-            if catch_up:
-                click.echo("📊 Running summary catch-up...")
-                click.echo("💭 Generating missing hourly and daily summaries...")
-                stats = await flow_cli.summary_service.ensure_summaries_up_to_date()
-                
-                click.echo("\n✅ Catch-up completed!")
-                click.echo(f"📈 Generated {stats['hourly_generated']} hourly summaries")
-                click.echo(f"📅 Generated {stats['daily_generated']} daily summaries")
-                if stats['errors'] > 0:
-                    click.echo(f"⚠️  {stats['errors']} errors occurred")
-                click.echo(f"🕐 Last check: {stats['last_check']}")
-                return
-            
-            if list_summaries:
-                click.echo("📋 Existing Summaries:")
-                click.echo("─" * 50)
-                # TODO: Implement list functionality
-                click.echo("Summary listing not yet implemented")
-                return
-            
-            if stats:
-                click.echo("📊 Summary Statistics:")
-                click.echo("─" * 30)
-                # TODO: Implement stats functionality
-                click.echo("Summary statistics not yet implemented")
-                return
-            
-            click.echo("📊 Generating activity summary...")
-            click.echo(f"⏰ Timeframe: {timeframe}")
-            
-            if start and end:
-                click.echo(f"📅 Custom range: {start} to {end}")
-                # TODO: Implement custom range
-                click.echo("Custom range summarization not yet implemented")
-            elif timeframe == 'today':
-                result = await flow_cli.summary_service.get_daily_summary()
-                
-                click.echo("\n✅ Summary generated successfully!")
-                click.echo(f"📄 Date: {result.get('date', 'today')}")
-                click.echo(f"💾 Cached: {'Yes' if result.get('cached', False) else 'No'}")
-                click.echo(f"📊 Entries: {result.get('entry_count', 0)}")
-                click.echo("\n📝 Summary:")
-                click.echo("─" * 60)
-                click.echo(result.get('summary', 'No summary available'))
-                click.echo("─" * 60)
-            else:
-                click.echo(f"Timeframe '{timeframe}' not yet implemented")
-                
-        except Exception as error:
-            click.echo(f"❌ Error: {error}")
-            sys.exit(1)
-    
-    asyncio.run(_summarize())
 
 
 @cli.command()
@@ -569,60 +495,6 @@ def screens(ctx):
     asyncio.run(_screens())
 
 
-@cli.command()
-@click.option('-p', '--port', default=3000, help='Port number')
-@click.option('--public', is_flag=True, help='Make server publicly accessible via ngrok')
-@click.pass_context
-def serve(ctx, port, public):
-    """Start MCP server for external client integration."""
-    async def _serve():
-        try:
-            click.echo(f"🔌 Starting MCP HTTP Bridge on port {port}...")
-            click.echo(f"🌐 Public access: {'Enabled via ngrok' if public else 'Local only'}")
-            
-            if public:
-                # Start ngrok tunnel in background
-                import subprocess
-                ngrok_process = subprocess.Popen([
-                    'ngrok', 'http', str(port), '--log=stdout'
-                ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                
-                # Wait a moment for ngrok to start
-                import time
-                time.sleep(3)
-                
-                # Extract ngrok URL
-                try:
-                    result = subprocess.run(['curl', '-s', 'http://localhost:4040/api/tunnels'], 
-                                          capture_output=True, text=True)
-                    if result.returncode == 0:
-                        import json
-                        tunnels = json.loads(result.stdout)
-                        if tunnels.get('tunnels'):
-                            public_url = tunnels['tunnels'][0]['public_url']
-                            click.echo(f"🌍 Public URL: {public_url}")
-                            
-                            # Save URL to file for later reference
-                            with open('mcp_public_url.txt', 'w') as f:
-                                f.write(public_url)
-                        else:
-                            click.echo("⚠️  No ngrok tunnels found")
-                    else:
-                        click.echo("⚠️  Could not retrieve ngrok URL")
-                except Exception as e:
-                    click.echo(f"⚠️  Error getting ngrok URL: {e}")
-            
-            # Import and run the MCP HTTP bridge
-            from mcp_http_bridge import MCPHttpBridge
-            
-            bridge = MCPHttpBridge(port=port)
-            await bridge.run()
-            
-        except Exception as error:
-            click.echo(f"❌ Error: {error}")
-            sys.exit(1)
-    
-    asyncio.run(_serve())
 
 
 @cli.command()

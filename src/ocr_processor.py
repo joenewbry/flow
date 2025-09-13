@@ -16,7 +16,6 @@ from io import BytesIO
 
 from lib.screen_detection import screen_detector
 from lib.chroma_client import chroma_client
-from summary_service import SummaryService
 
 logger = logging.getLogger(__name__)
 
@@ -25,16 +24,12 @@ class OCRProcessor:
     def __init__(self, capture_interval: int = 60, max_concurrent_ocr: int = 4):
         self.capture_interval = capture_interval  # seconds
         self.max_concurrent_ocr = max_concurrent_ocr
-        self.summaries_dir = Path("data/summaries")
-        self.daily_dir = Path("summaries/daily")
         self.screenshots_dir = Path("data/screenshots")
         
         self.is_running = False
         self.processing_queue: List[Dict[str, Any]] = []
         self._semaphore = asyncio.Semaphore(max_concurrent_ocr)
         
-        # Initialize summary service for automatic generation
-        self.summary_service = SummaryService()
         self.last_hourly_check = None
         
         # Ensure tesseract is available
@@ -317,11 +312,6 @@ class OCRProcessor:
             # Initialize ChromaDB
             await chroma_client.init()
             
-            # Initialize summary service and perform catch-up
-            await self.summary_service.init()
-            logger.info("Performing summary catch-up...")
-            catch_up_stats = await self.summary_service.ensure_summaries_up_to_date()
-            logger.info(f"Summary catch-up completed: {catch_up_stats['hourly_generated']} hourly, {catch_up_stats['daily_generated']} daily summaries generated")
             
             # Detect screens
             await screen_detector.detect_screens()
@@ -343,11 +333,6 @@ class OCRProcessor:
                 if self.is_running:  # Check again in case we were stopped
                     await self.capture_all_screens()
                     
-                    # Check for hourly summary generation
-                    try:
-                        await self.summary_service.generate_hourly_summary_if_needed()
-                    except Exception as e:
-                        logger.warning(f"Error during hourly summary check: {e}")
             
         except Exception as error:
             logger.error(f"Error starting OCR service: {error}")
