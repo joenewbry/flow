@@ -40,6 +40,12 @@ class FlowMCPServer:
         self.chroma_initialized = False
         self.screenhistory_dir = Path("data/screen_history")
         
+        # Set server capabilities to indicate tools are supported
+        from mcp.types import ServerCapabilities
+        self.server.capabilities = ServerCapabilities(
+            tools={}  # Indicate that tools are supported
+        )
+        
     async def ensure_chroma_initialized(self):
         """Ensure ChromaDB is initialized."""
         if not self.chroma_initialized:
@@ -382,119 +388,135 @@ class FlowMCPServer:
         """Define available MCP tools."""
         tools = [
             Tool(
-                name="what-can-i-do",
-                description="Get information about what you can do with Flow",
-                inputSchema={
-                    "type": "object",
-                    "properties": {},
-                    "additionalProperties": False
-                }
-            ),
-            Tool(
-                name="search-screenshots",
-                description="Search OCR data from screenshots with optional date range parameters",
+                name="hello-world",
+                description="A simple hello world tool for testing MCP client connection",
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "query": {
+                        "name": {
                             "type": "string",
-                            "description": "Search query for the OCR text content"
-                        },
-                        "start_date": {
-                            "type": "string",
-                            "description": "Start date for search (YYYY-MM-DD format, optional)"
-                        },
-                        "end_date": {
-                            "type": "string", 
-                            "description": "End date for search (YYYY-MM-DD format, optional)"
-                        },
-                        "limit": {
-                            "type": "integer",
-                            "description": "Maximum number of results to return (default: 10)",
-                            "default": 10
+                            "description": "Name to greet (optional)",
+                            "default": "World"
                         }
                     },
-                    "required": ["query"],
-                    "additionalProperties": False
-                }
-            ),
-            Tool(
-                name="fetch-flow-stats",
-                description="Get statistics about screenshots saved in the screenshots collection",
-                inputSchema={
-                    "type": "object",
-                    "properties": {},
-                    "additionalProperties": False
-                }
-            ),
-            Tool(
-                name="get-daily-summary",
-                description="Get a summary of screen activity for a specific day",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "date": {
-                            "type": "string",
-                            "description": "Date in YYYY-MM-DD format (optional, defaults to today)",
-                            "format": "date"
-                        }
-                    },
-                    "additionalProperties": False
-                }
-            ),
-            Tool(
-                name="get-time-range-summary",
-                description="Get a summary of screen activity for a custom time range",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "start_time": {
-                            "type": "string",
-                            "description": "Start time in ISO 8601 format (e.g., 2025-07-17T09:00:00Z)",
-                            "format": "date-time"
-                        },
-                        "end_time": {
-                            "type": "string",
-                            "description": "End time in ISO 8601 format (e.g., 2025-07-17T17:00:00Z)",
-                            "format": "date-time"
-                        }
-                    },
-                    "required": ["start_time", "end_time"],
-                    "additionalProperties": False
-                }
-            ),
-            Tool(
-                name="get-hourly-summary",
-                description="Get a summary of screen activity for a specific hour",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "hour": {
-                            "type": "string",
-                            "description": "Hour in YYYY-MM-DD-HH format (e.g., 2025-07-17-14)"
-                        }
-                    },
-                    "required": ["hour"],
-                    "additionalProperties": False
-                }
-            ),
-            Tool(
-                name="get-last-hours-summary",
-                description="Get a summary of screen activity for the last N hours",
-                inputSchema={
-                    "type": "object",
-                    "properties": {
-                        "hours": {
-                            "type": "integer",
-                            "description": "Number of hours to look back (1-168)",
-                            "minimum": 1,
-                            "maximum": 168
-                        }
-                    },
-                    "required": ["hours"],
                     "additionalProperties": False
                 }
             )
+            # Commented out all other tools for debugging
+            # Tool(
+            #     name="what-can-i-do",
+            #     description="Get information about what you can do with Flow",
+            #     inputSchema={
+            #         "type": "object",
+            #         "properties": {},
+            #         "additionalProperties": False
+            #     }
+            # ),
+            # Tool(
+            #     name="search-screenshots",
+            #     description="Search OCR data from screenshots with optional date range parameters",
+            #     inputSchema={
+            #         "type": "object",
+            #         "properties": {
+            #             "query": {
+            #                 "type": "string",
+            #                 "description": "Search query for the OCR text content"
+            #             },
+            #             "start_date": {
+            #                 "type": "string",
+            #                 "description": "Start date for search (YYYY-MM-DD format, optional)"
+            #             },
+            #             "end_date": {
+            #                 "type": "string", 
+            #                 "description": "End date for search (YYYY-MM-DD format, optional)"
+            #             },
+            #             "limit": {
+            #                 "type": "integer",
+            #                 "description": "Maximum number of results to return (default: 10)",
+            #                 "default": 10
+            #             }
+            #         },
+            #         "required": ["query"],
+            #         "additionalProperties": False
+            #     }
+            # ),
+            # Tool(
+            #     name="fetch-flow-stats",
+            #     description="Get statistics about screenshots saved in the screenshots collection",
+            #     inputSchema={
+            #         "type": "object",
+            #         "properties": {},
+            #         "additionalProperties": False
+            #     }
+            # ),
+            # Tool(
+            #     name="get-daily-summary",
+            #     description="Get a summary of screen activity for a specific day",
+            #     inputSchema={
+            #         "type": "object",
+            #         "properties": {
+            #             "date": {
+            #                 "type": "string",
+            #                 "description": "Date in YYYY-MM-DD format (optional, defaults to today)",
+            #                 "format": "date"
+            #             }
+            #         },
+            #         "additionalProperties": False
+            #     }
+            # ),
+            # Tool(
+            #     name="get-time-range-summary",
+            #     description="Get a summary of screen activity for a custom time range",
+            #     inputSchema={
+            #         "type": "object",
+            #         "properties": {
+            #             "start_time": {
+            #                 "type": "string",
+            #                 "description": "Start time in ISO 8601 format (e.g., 2025-07-17T09:00:00Z)",
+            #                 "format": "date-time"
+            #             },
+            #             "end_time": {
+            #                 "type": "string",
+            #                 "description": "End time in ISO 8601 format (e.g., 2025-07-17T17:00:00Z)",
+            #                 "format": "date-time"
+            #             }
+            #         },
+            #         "required": ["start_time", "end_time"],
+            #         "additionalProperties": False
+            #     }
+            # ),
+            # Tool(
+            #     name="get-hourly-summary",
+            #     description="Get a summary of screen activity for a specific hour",
+            #     inputSchema={
+            #         "type": "object",
+            #         "properties": {
+            #             "hour": {
+            #                 "type": "string",
+            #                 "description": "Hour in YYYY-MM-DD-HH format (e.g., 2025-07-17-14)"
+            #             }
+            #         },
+            #         "required": ["hour"],
+            #         "additionalProperties": False
+            #     }
+            # ),
+            # Tool(
+            #     name="get-last-hours-summary",
+            #     description="Get a summary of screen activity for the last N hours",
+            #     inputSchema={
+            #         "type": "object",
+            #         "properties": {
+            #             "hours": {
+            #                 "type": "integer",
+            #                 "description": "Number of hours to look back (1-168)",
+            #                 "minimum": 1,
+            #                 "maximum": 168
+            #             }
+            #         },
+            #         "required": ["hours"],
+            #         "additionalProperties": False
+            #     }
+            # )
         ]
         
         return tools
@@ -509,117 +531,127 @@ class FlowMCPServer:
         try:
             tool_name = request.params.name
             
-            if tool_name == "what-can-i-do":
+            if tool_name == "hello-world":
+                name = request.params.arguments.get("name", "World")
                 result = {
-                    "flow_capabilities": [
-                        "Search for anything that you worked on while using flow. This includes urls, document titles, jira tickets, etc.",
-                        "Get statistics about your screenshot collection",
-                        "Search OCR data from screenshots with optional date ranges",
-                        "Generate summaries of your screen activity for daily, hourly, or custom time ranges"
-                    ],
-                    "description": "Flow is a screen activity tracking and analysis tool that helps you search and analyze your work patterns.",
-                    "available_tools": [
-                        "what-can-i-do",
-                        "search-screenshots", 
-                        "fetch-flow-stats",
-                        "get-daily-summary",
-                        "get-time-range-summary",
-                        "get-hourly-summary",
-                        "get-last-hours-summary"
-                    ]
+                    "message": f"Hello, {name}!",
+                    "status": "success",
+                    "tool": "hello-world",
+                    "timestamp": datetime.now(timezone.utc).isoformat()
                 }
             
-            elif tool_name == "search-screenshots":
-                await self.ensure_chroma_initialized()
-                
-                query = request.params.arguments.get("query")
-                start_date = request.params.arguments.get("start_date")
-                end_date = request.params.arguments.get("end_date")
-                limit = request.params.arguments.get("limit", 10)
-                
-                # Build search parameters
-                search_params = {
-                    "query": query,
-                    "limit": limit
-                }
-                
-                # Add date filtering if provided
-                where_clause = {}
-                if start_date:
-                    where_clause["timestamp"] = {"$gte": f"{start_date}T00:00:00"}
-                if end_date:
-                    if "timestamp" in where_clause:
-                        where_clause["timestamp"]["$lte"] = f"{end_date}T23:59:59"
-                    else:
-                        where_clause["timestamp"] = {"$lte": f"{end_date}T23:59:59"}
-                
-                if where_clause:
-                    search_params["where"] = where_clause
-                
-                # Perform search
-                search_results = await chroma_client.search_documents(
-                    collection_name="screenshots",
-                    **search_params
-                )
-                
-                result = {
-                    "query": query,
-                    "results": search_results,
-                    "total_found": len(search_results),
-                    "date_range": {
-                        "start_date": start_date,
-                        "end_date": end_date
-                    }
-                }
-            
-            elif tool_name == "fetch-flow-stats":
-                await self.ensure_chroma_initialized()
-                
-                # Get collection info
-                collection_info = await chroma_client.get_collection_info("screenshots")
-                
-                # Count total documents
-                total_count = await chroma_client.count_documents("screenshots")
-                
-                # Get some sample documents to determine date range
-                sample_docs = await chroma_client.search_documents(
-                    collection_name="screenshots",
-                    query="",
-                    limit=100
-                )
-                
-                timestamps = []
-                for doc in sample_docs:
-                    if doc.get("metadata", {}).get("timestamp"):
-                        timestamps.append(doc["metadata"]["timestamp"])
-                
-                result = {
-                    "collection_name": "screenshots",
-                    "total_screenshots": total_count,
-                    "collection_info": collection_info,
-                    "date_range": {
-                        "earliest": min(timestamps) if timestamps else None,
-                        "latest": max(timestamps) if timestamps else None
-                    },
-                    "sample_timestamps": sorted(timestamps)[:5] if timestamps else []
-                }
-            
-            elif tool_name == "get-daily-summary":
-                date_str = request.params.arguments.get("date")
-                result = await self.get_daily_summary(date_str)
-            
-            elif tool_name == "get-time-range-summary":
-                start_time = request.params.arguments.get("start_time")
-                end_time = request.params.arguments.get("end_time")
-                result = await self.get_time_range_summary(start_time, end_time)
-            
-            elif tool_name == "get-hourly-summary":
-                hour_str = request.params.arguments.get("hour")
-                result = await self.get_hourly_summary(hour_str)
-            
-            elif tool_name == "get-last-hours-summary":
-                hours = request.params.arguments.get("hours")
-                result = await self.get_last_hours_summary(hours)
+            # Commented out all other tool handlers for debugging
+            # elif tool_name == "what-can-i-do":
+            #     result = {
+            #         "flow_capabilities": [
+            #             "Search for anything that you worked on while using flow. This includes urls, document titles, jira tickets, etc.",
+            #             "Get statistics about your screenshot collection",
+            #             "Search OCR data from screenshots with optional date ranges",
+            #             "Generate summaries of your screen activity for daily, hourly, or custom time ranges"
+            #         ],
+            #         "description": "Flow is a screen activity tracking and analysis tool that helps you search and analyze your work patterns.",
+            #         "available_tools": [
+            #             "what-can-i-do",
+            #             "search-screenshots", 
+            #             "fetch-flow-stats",
+            #             "get-daily-summary",
+            #             "get-time-range-summary",
+            #             "get-hourly-summary",
+            #             "get-last-hours-summary"
+            #         ]
+            #     }
+            # 
+            # elif tool_name == "search-screenshots":
+            #     await self.ensure_chroma_initialized()
+            #     
+            #     query = request.params.arguments.get("query")
+            #     start_date = request.params.arguments.get("start_date")
+            #     end_date = request.params.arguments.get("end_date")
+            #     limit = request.params.arguments.get("limit", 10)
+            #     
+            #     # Build search parameters
+            #     search_params = {
+            #         "query": query,
+            #         "limit": limit
+            #     }
+            #     
+            #     # Add date filtering if provided
+            #     where_clause = {}
+            #     if start_date:
+            #         where_clause["timestamp"] = {"$gte": f"{start_date}T00:00:00"}
+            #     if end_date:
+            #         if "timestamp" in where_clause:
+            #             where_clause["timestamp"]["$lte"] = f"{end_date}T23:59:59"
+            #         else:
+            #             where_clause["timestamp"] = {"$lte": f"{end_date}T23:59:59"}
+            #     
+            #     if where_clause:
+            #         search_params["where"] = where_clause
+            #     
+            #     # Perform search
+            #     search_results = await chroma_client.search_documents(
+            #         collection_name="screenshots",
+            #         **search_params
+            #     )
+            #     
+            #     result = {
+            #         "query": query,
+            #         "results": search_results,
+            #         "total_found": len(search_results),
+            #         "date_range": {
+            #             "start_date": start_date,
+            #             "end_date": end_date
+            #         }
+            #     }
+            # 
+            # elif tool_name == "fetch-flow-stats":
+            #     await self.ensure_chroma_initialized()
+            #     
+            #     # Get collection info
+            #     collection_info = await chroma_client.get_collection_info("screenshots")
+            #     
+            #     # Count total documents
+            #     total_count = await chroma_client.count_documents("screenshots")
+            #     
+            #     # Get some sample documents to determine date range
+            #     sample_docs = await chroma_client.search_documents(
+            #         collection_name="screenshots",
+            #         query="",
+            #         limit=100
+            #     )
+            #     
+            #     timestamps = []
+            #     for doc in sample_docs:
+            #         if doc.get("metadata", {}).get("timestamp"):
+            #             timestamps.append(doc["metadata"]["timestamp"])
+            #     
+            #     result = {
+            #         "collection_name": "screenshots",
+            #         "total_screenshots": total_count,
+            #         "collection_info": collection_info,
+            #         "date_range": {
+            #             "earliest": min(timestamps) if timestamps else None,
+            #             "latest": max(timestamps) if timestamps else None
+            #         },
+            #         "sample_timestamps": sorted(timestamps)[:5] if timestamps else []
+            #     }
+            # 
+            # elif tool_name == "get-daily-summary":
+            #     date_str = request.params.arguments.get("date")
+            #     result = await self.get_daily_summary(date_str)
+            # 
+            # elif tool_name == "get-time-range-summary":
+            #     start_time = request.params.arguments.get("start_time")
+            #     end_time = request.params.arguments.get("end_time")
+            #     result = await self.get_time_range_summary(start_time, end_time)
+            # 
+            # elif tool_name == "get-hourly-summary":
+            #     hour_str = request.params.arguments.get("hour")
+            #     result = await self.get_hourly_summary(hour_str)
+            # 
+            # elif tool_name == "get-last-hours-summary":
+            #     hours = request.params.arguments.get("hours")
+            #     result = await self.get_last_hours_summary(hours)
             
             else:
                 raise ValueError(f"Unknown tool: {tool_name}")
@@ -667,7 +699,9 @@ async def main():
     
     try:
         logger.info("Flow MCP Server starting on stdio transport")
-        logger.info("Available tools: what-can-i-do")
+        tools = server.setup_tools()
+        tool_names = [tool.name for tool in tools]
+        logger.info(f"Available tools: {', '.join(tool_names)}")
         await server.run()
     except KeyboardInterrupt:
         logger.info("Server interrupted by user")
