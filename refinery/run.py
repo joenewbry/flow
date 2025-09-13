@@ -32,9 +32,6 @@ import pytesseract
 from io import BytesIO
 
 # Import screen detection and chroma client
-import sys
-sys.path.append('/Users/joe/dev/flow/src')
-
 from lib.screen_detection import screen_detector
 from lib.chroma_client import chroma_client
 
