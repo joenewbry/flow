@@ -175,54 +175,182 @@ To verify everything is working correctly:
      - `@flow search-screenshots "your search query"` - Search your screenshot data
      - `@flow fetch-flow-stats` - Get statistics about your screenshot collection
 
-### Adding Flow Tools to Claude Desktop
+## 🔧 Developer Setup: Connecting to Claude Desktop
 
-**Step-by-Step Guide:**
+Flow provides MCP (Model Context Protocol) servers that extend Claude Desktop's capabilities. This section covers how to connect Flow as a developer, following the [official MCP documentation](https://modelcontextprotocol.io/docs/develop/connect-local-servers).
 
-1. **Locate Claude Desktop Configuration File:**
-   - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-   - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-   - **Linux**: `~/.config/Claude/claude_desktop_config.json`
+### Prerequisites
 
-2. **Create or Edit Configuration:**
+Before connecting Flow to Claude Desktop, ensure you have:
+
+- **Claude Desktop** installed and updated to the latest version
+- **Node.js** (LTS version recommended) for the MCP server
+- **Python 3.10+** for the Flow tracking components
+
+### Understanding MCP Servers
+
+MCP servers are programs that run on your computer and provide specific capabilities to Claude Desktop through a standardized protocol. Flow's MCP server exposes tools that Claude can use to:
+
+- Search your screenshot data with semantic queries
+- Generate summaries of your screen activity
+- Get statistics about your screenshot collection
+- Access time-based activity analysis
+
+All actions require your explicit approval before execution, ensuring you maintain full control over what Claude can access.
+
+### Configuration Methods
+
+Flow supports two MCP server implementations:
+
+#### Option 1: Node.js Server (Recommended)
+
+The Node.js implementation follows MCP best practices and is easier to configure:
+
+1. **Open Claude Desktop Settings:**
+   - Click the Claude menu in your system's menu bar
+   - Select "Settings..." (not the settings within the Claude window)
+   - Navigate to the "Developer" tab
+   - Click "Edit Config" to open the configuration file
+
+2. **Configure the Node.js Server:**
    ```json
    {
      "mcpServers": {
        "flow": {
-         "command": "/path/to/your/flow/mcp-flow/.venv/bin/python",
+         "command": "node",
          "args": [
-           "-u",
-           "/path/to/your/flow/mcp-flow/flow_mcp_server.py"
+           "/Users/joe/dev/flow/mcp-flow-node/server.js"
          ],
-         "cwd": "/path/to/your/flow/mcp-flow",
-         "env": {
-           "PYTHONPATH": "/path/to/your/flow/src",
-           "PYTHONUNBUFFERED": "1"
-         }
+         "cwd": "/Users/joe/dev/flow/mcp-flow-node"
        }
      }
    }
    ```
 
-3. **Important Notes:**
-   - Replace `/path/to/your/flow/` with your actual Flow installation path
-   - Ensure the MCP server virtual environment is activated in the system PATH
-   - The `PYTHONPATH` environment variable helps the MCP server find the Flow source modules
+3. **Replace paths** with your actual Flow installation directory.
 
-4. **Restart Claude Desktop:**
+#### Option 2: Python Server (Legacy)
+
+For the Python implementation:
+
+```json
+{
+  "mcpServers": {
+    "flow": {
+      "command": "/Users/joe/dev/flow/mcp-flow/.venv/bin/python",
+      "args": [
+        "-u",
+        "/Users/joe/dev/flow/mcp-flow/flow_mcp_server.py"
+      ],
+      "cwd": "/Users/joe/dev/flow/mcp-flow",
+      "env": {
+        "PYTHONPATH": "/Users/joe/dev/flow/src",
+        "PYTHONUNBUFFERED": "1"
+      }
+    }
+  }
+}
+```
+
+### Configuration File Locations
+
+The Claude Desktop configuration file is located at:
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux**: `~/.config/Claude/claude_desktop_config.json`
+
+### Step-by-Step Setup
+
+1. **Install Dependencies:**
+   ```bash
+   # For Node.js server
+   cd mcp-flow-node
+   npm install
+   
+   # For Python server
+   cd mcp-flow
+   source .venv/bin/activate
+   pip install -r flow-mcp-requirements.txt
+   ```
+
+2. **Configure Claude Desktop:**
+   - Open Claude Desktop settings
+   - Navigate to Developer tab
+   - Click "Edit Config"
+   - Add the appropriate configuration (see options above)
+   - Save the file
+
+3. **Restart Claude Desktop:**
    - Completely quit Claude Desktop
    - Restart the application
-   - The Flow tools should now be available
+   - Look for the MCP server indicator (🔨) in the bottom-right corner
 
-5. **Verify Integration:**
-   - In Claude Desktop, you should see Flow tools available
-   - Try the commands listed in the testing section above
+4. **Verify Connection:**
+   - Click the MCP server indicator to see available tools
+   - Try using Flow tools in Claude Desktop
 
-**Troubleshooting:**
-- If tools don't appear, check the Claude Desktop logs for errors
-- Ensure all virtual environments are properly activated
-- Verify Python paths are correct in the configuration
-- Make sure the MCP server starts without errors when run manually
+### Testing the Integration
+
+Once connected, you can test Flow tools in Claude Desktop:
+
+- **"Hello from Flow"** - Test the hello-world tool
+- **"Search my screenshots for 'meeting notes'"** - Search your screenshot data
+- **"Get my daily activity summary"** - Generate activity summaries
+- **"Show me Flow statistics"** - Get collection statistics
+
+### Troubleshooting
+
+If you encounter issues:
+
+1. **Server not showing up:**
+   - Restart Claude Desktop completely
+   - Check your `claude_desktop_config.json` file syntax
+   - Ensure file paths are absolute (not relative)
+   - Verify Node.js/Python is installed and accessible
+
+2. **Check logs:**
+   ```bash
+   # macOS/Linux
+   tail -n 20 -f ~/Library/Logs/Claude/mcp*.log
+   
+   # Windows
+   tail -n 20 -f %APPDATA%\Claude\logs\mcp*.log
+   ```
+
+3. **Manual server testing:**
+   ```bash
+   # Test Node.js server
+   cd mcp-flow-node
+   node server.js
+   
+   # Test Python server
+   cd mcp-flow
+   source .venv/bin/activate
+   python flow_mcp_server.py
+   ```
+
+4. **Common issues:**
+   - **ENOENT errors on Windows**: Add expanded `%APPDATA%` path to `env` section
+   - **NPM not found**: Install NPM globally with `npm install -g npm`
+   - **Python path issues**: Verify virtual environment activation and PYTHONPATH
+
+### Security Considerations
+
+- Only grant access to directories you're comfortable with Claude reading/modifying
+- The server runs with your user account permissions
+- All file operations require explicit approval
+- Review each request carefully before approving
+
+### Next Steps
+
+Once Flow is connected to Claude Desktop:
+
+- Explore Flow's screen activity analysis capabilities
+- Use semantic search across your screenshot data
+- Generate time-based activity summaries
+- Build custom workflows with Flow's MCP tools
+
+For more advanced usage, see the [MCP documentation](https://modelcontextprotocol.io/docs/develop/connect-local-servers) and [Flow's architecture section](#architecture).
 
 ### Details on How Flow Runs
 
