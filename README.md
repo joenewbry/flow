@@ -60,9 +60,9 @@
    cd ..
    ```
 
-3. **Set up Flow tracking environment**
+3. **Set up Refinery tracking environment**
    ```bash
-   cd flow
+   cd refinery
    python -m venv .venv
    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
    pip install -r flow-requirements.txt
@@ -71,31 +71,18 @@
 
 4. **Set up MCP server environment**
    ```bash
-   # Option 1: Node.js server (recommended)
    cd mcp-flow-node
    npm install
    cd ..
-   
-   # Option 2: Python server (legacy)
-   cd mcp-flow
-   python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   pip install -r flow-mcp-requirements.txt
-   cd ..
    ```
 
-5. **Configure environment** (optional)
-   ```bash
-   cp .env.example .env
-   # Edit .env with your configuration
-   ```
 
 ### System Requirements
 
 **Python 3.10+** (tested with Python 3.13.7) required for:
 - **ChromaDB Server**: Python 3.10+ (for ChromaDB compatibility)
-- **Flow Tracking**: Python 3.10+ (for modern async features)
-- **MCP Server (Python)**: Python 3.10+ (MCP requires Python 3.10+)
+- **Refinery Tracking**: Python 3.10+ (for modern async features)
+- **MCP Server (Node.js)**: Node.js LTS (recommended implementation)
 
 **Node.js LTS** required for:
 - **MCP Server (Node.js)**: Recommended implementation following MCP best practices
@@ -115,7 +102,7 @@
 
 2. **Start screen tracking**
    ```bash
-   cd flow
+   cd refinery
    source .venv/bin/activate
    python run.py
    cd ..
@@ -139,8 +126,8 @@ To verify everything is working correctly:
    curl http://localhost:8000/api/v1/heartbeat
    ```
 
-2. **Test Flow tracking**
-   - Start the Flow runner and verify OCR data is being saved to `flow/data/ocr/`
+2. **Test Refinery tracking**
+   - Start the Refinery runner and verify OCR data is being saved to `refinery/data/ocr/`
    - Check logs for successful screenshot capture and OCR processing
    - Note: Screenshots are processed in memory and not saved to disk
 
@@ -203,11 +190,7 @@ All actions require your explicit approval before execution, ensuring you mainta
 
 ### Configuration Methods
 
-Flow supports two MCP server implementations:
-
-#### Option 1: Node.js Server (Recommended)
-
-The Node.js implementation follows MCP best practices and is easier to configure:
+Flow provides a Node.js MCP server implementation that follows MCP best practices:
 
 1. **Open Claude Desktop Settings:**
    - Click the Claude menu in your system's menu bar
@@ -232,28 +215,6 @@ The Node.js implementation follows MCP best practices and is easier to configure
 
 3. **Replace paths** with your actual Flow installation directory.
 
-#### Option 2: Python Server (Legacy)
-
-For the Python implementation:
-
-```json
-{
-  "mcpServers": {
-    "flow": {
-      "command": "/Users/joe/dev/flow/mcp-flow/.venv/bin/python",
-      "args": [
-        "-u",
-        "/Users/joe/dev/flow/mcp-flow/flow_mcp_server.py"
-      ],
-      "cwd": "/Users/joe/dev/flow/mcp-flow",
-      "env": {
-        "PYTHONPATH": "/Users/joe/dev/flow/src",
-        "PYTHONUNBUFFERED": "1"
-      }
-    }
-  }
-}
-```
 
 ### Configuration File Locations
 
@@ -269,11 +230,6 @@ The Claude Desktop configuration file is located at:
    # For Node.js server
    cd mcp-flow-node
    npm install
-   
-   # For Python server
-   cd mcp-flow
-   source .venv/bin/activate
-   pip install -r flow-mcp-requirements.txt
    ```
 
 2. **Configure Claude Desktop:**
@@ -325,17 +281,11 @@ If you encounter issues:
    # Test Node.js server
    cd mcp-flow-node
    node server.js
-   
-   # Test Python server
-   cd mcp-flow
-   source .venv/bin/activate
-   python flow_mcp_server.py
    ```
 
 4. **Common issues:**
    - **ENOENT errors on Windows**: Add expanded `%APPDATA%` path to `env` section
    - **NPM not found**: Install NPM globally with `npm install -g npm`
-   - **Python path issues**: Verify virtual environment activation and PYTHONPATH
 
 ### Security Considerations
 
@@ -370,7 +320,7 @@ For more advanced usage, see the [MCP documentation](https://modelcontextprotoco
 
 **Data Storage:**
 - Screenshots: Processed in memory only (not saved to disk)
-- OCR data: `flow/data/ocr/` (JSON files with extracted text)
+- OCR data: `refinery/data/ocr/` (JSON files with extracted text)
 - ChromaDB: Vector database for semantic search across all captured content
 
 ## 📚 Documentation
@@ -423,29 +373,6 @@ Options:
 ./scripts/start-mcp-server.sh
 ```
 
-
-## 🔧 Configuration
-
-### Environment Variables
-
-Create a `.env` file based on `.env.example`:
-
-```env
-# ChromaDB Configuration
-CHROMA_HOST=localhost
-CHROMA_PORT=8000
-CHROMA_PERSIST_DIRECTORY=./data/chroma
-
-# MCP HTTP Bridge Configuration
-MCP_HTTP_PORT=3000
-
-# Logging Configuration
-LOG_LEVEL=INFO
-
-# Optional: API Keys
-# OPENAI_API_KEY=your_key_here
-# ANTHROPIC_API_KEY=your_key_here
-```
 
 ## 🏗️ Architecture
 
