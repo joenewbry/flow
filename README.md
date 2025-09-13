@@ -71,6 +71,12 @@
 
 4. **Set up MCP server environment**
    ```bash
+   # Option 1: Node.js server (recommended)
+   cd mcp-flow-node
+   npm install
+   cd ..
+   
+   # Option 2: Python server (legacy)
    cd mcp-flow
    python -m venv .venv
    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
@@ -84,15 +90,17 @@
    # Edit .env with your configuration
    ```
 
-### Python Version Requirements
+### System Requirements
 
-All three virtual environments require **Python 3.10+** (tested with Python 3.13.7):
-
+**Python 3.10+** (tested with Python 3.13.7) required for:
 - **ChromaDB Server**: Python 3.10+ (for ChromaDB compatibility)
 - **Flow Tracking**: Python 3.10+ (for modern async features)
-- **MCP Server**: Python 3.10+ (MCP requires Python 3.10+)
+- **MCP Server (Python)**: Python 3.10+ (MCP requires Python 3.10+)
 
-**Recommended**: Use a Python version manager like [pyenv](https://github.com/pyenv/pyenv) to easily switch between Python versions if needed.
+**Node.js LTS** required for:
+- **MCP Server (Node.js)**: Recommended implementation following MCP best practices
+
+**Recommended**: Use version managers like [pyenv](https://github.com/pyenv/pyenv) for Python and [nvm](https://github.com/nvm-sh/nvm) for Node.js to easily switch between versions.
 
 ### Basic Usage
 
@@ -115,9 +123,9 @@ All three virtual environments require **Python 3.10+** (tested with Python 3.13
 
 3. **Start MCP server** (for Claude Desktop integration)
    ```bash
-   cd mcp-flow
-   source .venv/bin/activate
-   python flow_mcp_server.py
+   cd mcp-flow-node
+   npm install
+   node server.js
    cd ..
    ```
 
@@ -149,16 +157,11 @@ To verify everything is working correctly:
    {
      "mcpServers": {
        "flow": {
-         "command": "/Users/joe/dev/flow/mcp-flow/.venv/bin/python",
+         "command": "node",
          "args": [
-           "-u",
-           "/Users/joe/dev/flow/mcp-flow/flow_mcp_server.py"
+           "/Users/joe/dev/flow/mcp-flow-node/server.js"
          ],
-         "cwd": "/Users/joe/dev/flow/mcp-flow",
-         "env": {
-           "PYTHONPATH": "/Users/joe/dev/flow/src",
-           "PYTHONUNBUFFERED": "1"
-         }
+         "cwd": "/Users/joe/dev/flow/mcp-flow-node"
        }
      }
    }
@@ -171,9 +174,9 @@ To verify everything is working correctly:
    **Test the integration:**
    - Open Claude Desktop
    - Try using the Flow tools:
-     - `@flow what-can-i-do` - Get information about Flow capabilities
-     - `@flow search-screenshots "your search query"` - Search your screenshot data
-     - `@flow fetch-flow-stats` - Get statistics about your screenshot collection
+     - `@flow hello-world` - Test the hello-world tool
+     - Look for the MCP server indicator (🔨) in the bottom-right corner
+     - Click the indicator to see available Flow tools
 
 ## 🔧 Developer Setup: Connecting to Claude Desktop
 
