@@ -2,7 +2,7 @@
 """
 Flow Run Script - Multi-Screen Screenshot Capture and OCR Processing
 
-This script captures screenshots from all available screens every minute,
+This script captures screen_ocr_history from all available screens every minute,
 processes them with OCR, and saves the data to ChromaDB.
 
 Screen Naming Convention:
@@ -13,7 +13,7 @@ Screen Naming Convention:
 Screenshot files are saved as: {timestamp}_{screen_name}.png
 OCR data files are saved as: {timestamp}_{screen_name}.json
 
-All data is stored in ChromaDB collection "screenshots" for search and analysis.
+All data is stored in ChromaDB collection "screen_ocr_history" for search and analysis.
 """
 
 import asyncio
@@ -125,16 +125,16 @@ class FlowRunner:
             logger.error(f"OCR error for {screen_name}: {error}")
     
     def store_in_chroma_sync(self, ocr_data: Dict[str, Any]):
-        """Store OCR data in ChromaDB collection 'screenshots' (synchronous version for background threads)."""
+        """Store OCR data in ChromaDB collection 'screen_ocr_history' (synchronous version for background threads)."""
         try:
             import chromadb
             
             # Initialize ChromaDB client
             client = chromadb.HttpClient(host="localhost", port=8000)
             
-            # Get or create the screenshots collection
+            # Get or create the screen_ocr_history collection
             collection = client.get_or_create_collection(
-                name="screenshots",
+                name="screen_ocr_history",
                 metadata={"description": "Screenshot OCR data"}
             )
             
@@ -161,13 +161,13 @@ class FlowRunner:
                 ids=[doc_id]
             )
             
-            logger.debug(f"Stored OCR data in ChromaDB screenshots collection: {ocr_data['timestamp']}")
+            logger.debug(f"Stored OCR data in ChromaDB screen_ocr_history collection: {ocr_data['timestamp']}")
             
         except Exception as error:
             logger.error(f"Error storing in ChromaDB: {error}")
     
     async def store_in_chroma(self, ocr_data: Dict[str, Any]):
-        """Store OCR data in ChromaDB collection 'screenshots'."""
+        """Store OCR data in ChromaDB collection 'screen_ocr_history'."""
         try:
             # Prepare content for embedding
             content = f"Screen: {ocr_data['screen_name']} Text: {ocr_data['text']}"
@@ -183,15 +183,15 @@ class FlowRunner:
                 "task_category": "screenshot_ocr"
             }
             
-            # Store in ChromaDB collection 'screenshots'
+            # Store in ChromaDB collection 'screen_ocr_history'
             await chroma_client.add_document(
-                collection_name="screenshots",
+                collection_name="screen_ocr_history",
                 doc_id=ocr_data["timestamp"] + "_" + ocr_data["screen_name"],
                 content=content,
                 metadata=metadata
             )
             
-            logger.debug(f"Stored OCR data in ChromaDB screenshots collection: {ocr_data['timestamp']}")
+            logger.debug(f"Stored OCR data in ChromaDB screen_ocr_history collection: {ocr_data['timestamp']}")
             
         except Exception as error:
             logger.error(f"Error storing in ChromaDB: {error}")
@@ -214,9 +214,9 @@ class FlowRunner:
             import chromadb
             client = chromadb.HttpClient(host="localhost", port=8000)
             
-            # Get or create the screenshots collection
+            # Get or create the screen_ocr_history collection
             collection = client.get_or_create_collection(
-                name="screenshots",
+                name="screen_ocr_history",
                 metadata={"description": "Screenshot OCR data"}
             )
             
@@ -302,7 +302,7 @@ class FlowRunner:
             logger.error(f"Error in bulk loading existing OCR data: {error}")
     
     async def capture_all_screens(self):
-        """Capture screenshots from all available screens."""
+        """Capture screen_ocr_history from all available screens."""
         try:
             # Detect screens if not already done
             if not screen_detector.screens:

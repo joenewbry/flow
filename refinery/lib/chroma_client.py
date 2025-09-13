@@ -52,11 +52,7 @@ class ChromaClientManager:
     async def _ensure_collections(self):
         """Ensure required collections exist."""
         default_collections = {
-            "screen_history": "Screen tracking history with timestamps and metadata",
-            "hourly_summaries": "Hourly activity summaries",
-            "daily_summaries": "Daily activity summaries", 
-            "monthly_summaries": "Monthly activity summaries",
-            "yearly_summaries": "Yearly activity summaries"
+            "screen_ocr_history": "Screen tracking history with timestamps and metadata",
         }
         
         try:
@@ -111,9 +107,9 @@ class ChromaClientManager:
             logger.error(f"Error adding document to {collection_name}: {error}")
             raise
     
-    async def search(self, query: str, collection_name: str = "screen_history", 
+    async def search(self, query: str, collection_name: str = "screen_ocr_history", 
                     limit: int = 10, filters: Optional[Dict] = None) -> List[Dict]:
-        """Search for documents using vector similarity."""
+        """Search your screen history using vector similarity of OCR data."""
         try:
             collection = self.get_collection(collection_name)
             

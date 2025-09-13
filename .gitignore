@@ -83,6 +83,5 @@ wheels/
 .installed.cfg
 *.egg
 
-# OCR data files (generated during runtime)
-refinery/data/ocr/
-*.json
+# Refinery data files (generated during runtime)
+refinery/data/
