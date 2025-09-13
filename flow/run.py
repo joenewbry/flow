@@ -132,6 +132,16 @@ class FlowRunner:
     def store_in_chroma_sync(self, ocr_data: Dict[str, Any]):
         """Store OCR data in ChromaDB collection 'screenshots' (synchronous version for background threads)."""
         try:
+            import chromadb
+            
+            # Initialize ChromaDB client
+            client = chromadb.HttpClient(host="localhost", port=8000)
+            
+            # Get or create the screenshots collection
+            collection = client.get_or_create_collection(
+                name="screenshots",
+                metadata={"description": "Screenshot OCR data"}
+            )
             
             # Prepare content for embedding
             content = f"Screen: {ocr_data['screen_name']} Text: {ocr_data['text']}"
@@ -148,27 +158,16 @@ class FlowRunner:
                 "task_category": "screenshot_ocr"
             }
             
-            # Store in ChromaDB using HTTP API (synchronous)
+            # Store in ChromaDB
             doc_id = ocr_data["timestamp"] + "_" + ocr_data["screen_name"]
             
-            # Create the document payload
-            payload = {
-                "documents": [content],
-                "metadatas": [metadata],
-                "ids": [doc_id]
-            }
-            
-            # Make HTTP request to ChromaDB
-            response = requests.post(
-                "http://localhost:8000/api/v1/collections/screenshots/add",
-                json=payload,
-                headers={"Content-Type": "application/json"}
+            collection.add(
+                documents=[content],
+                metadatas=[metadata],
+                ids=[doc_id]
             )
             
-            if response.status_code == 200:
-                logger.debug(f"Stored OCR data in ChromaDB screenshots collection: {ocr_data['timestamp']}")
-            else:
-                logger.error(f"Failed to store in ChromaDB: {response.status_code} - {response.text}")
+            logger.debug(f"Stored OCR data in ChromaDB screenshots collection: {ocr_data['timestamp']}")
             
         except Exception as error:
             logger.error(f"Error storing in ChromaDB: {error}")
