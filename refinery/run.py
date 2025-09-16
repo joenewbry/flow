@@ -87,6 +87,9 @@ class FlowRunner:
     
     def process_ocr_background(self, image: Image.Image, screen_name: str, timestamp: str):
         """Process OCR in background thread."""
+        ocr_success = False
+        result = None
+        
         try:
             logger.info(f"[{timestamp}] Processing OCR on thread {threading.current_thread().ident}")
             
@@ -118,16 +121,26 @@ class FlowRunner:
             logger.info(f"[{timestamp}] OCR data saved as {ocr_filename}")
             logger.info(f"[{timestamp}] Screen: {screen_name}, Text: {len(text)} chars, Words: {result['word_count']}")
             
-            # Store in ChromaDB (synchronous operation in background thread)
-            self.store_in_chroma_sync(result)
+            ocr_success = True
             
         except Exception as error:
             logger.error(f"OCR error for {screen_name}: {error}")
+            return  # Exit early if OCR fails
+            
+        # Try to store in ChromaDB only if OCR was successful
+        # This is separate from OCR processing so ChromaDB failures don't affect OCR
+        if ocr_success and result:
+            try:
+                self.store_in_chroma_sync(result)
+            except Exception as chroma_error:
+                logger.warning(f"[{timestamp}] ChromaDB storage failed for {screen_name}, but OCR data was saved: {chroma_error}")
     
     def store_in_chroma_sync(self, ocr_data: Dict[str, Any]):
         """Store OCR data in ChromaDB collection 'screen_ocr_history' (synchronous version for background threads)."""
         try:
             import chromadb
+            from chromadb.errors import ChromaError
+            import requests.exceptions
             
             # Initialize ChromaDB client
             client = chromadb.HttpClient(host="localhost", port=8000)
@@ -163,8 +176,15 @@ class FlowRunner:
             
             logger.debug(f"Stored OCR data in ChromaDB screen_ocr_history collection: {ocr_data['timestamp']}")
             
+        except requests.exceptions.ConnectionError as conn_error:
+            # ChromaDB server is not running or not accessible
+            raise Exception(f"ChromaDB server connection failed (is server running on localhost:8000?): {conn_error}")
+        except ChromaError as chroma_error:
+            # ChromaDB-specific errors
+            raise Exception(f"ChromaDB operation failed: {chroma_error}")
         except Exception as error:
-            logger.error(f"Error storing in ChromaDB: {error}")
+            # General errors
+            raise Exception(f"Unexpected error storing in ChromaDB: {error}")
     
     async def store_in_chroma(self, ocr_data: Dict[str, Any]):
         """Store OCR data in ChromaDB collection 'screen_ocr_history'."""
@@ -194,7 +214,8 @@ class FlowRunner:
             logger.debug(f"Stored OCR data in ChromaDB screen_ocr_history collection: {ocr_data['timestamp']}")
             
         except Exception as error:
-            logger.error(f"Error storing in ChromaDB: {error}")
+            logger.warning(f"ChromaDB storage failed, but OCR data was already saved: {error}")
+            # Don't re-raise the exception - OCR data is safely stored in JSON files
     
     async def load_existing_ocr_data(self):
         """Load existing OCR data from refinery/data/ocr directory into ChromaDB."""
@@ -210,15 +231,28 @@ class FlowRunner:
             
             logger.info(f"Found {len(ocr_files)} existing OCR files to process")
             
-            # Initialize ChromaDB client for bulk operations
-            import chromadb
-            client = chromadb.HttpClient(host="localhost", port=8000)
-            
-            # Get or create the screen_ocr_history collection
-            collection = client.get_or_create_collection(
-                name="screen_ocr_history",
-                metadata={"description": "Screenshot OCR data"}
-            )
+            # Try to initialize ChromaDB client for bulk operations
+            try:
+                import chromadb
+                from chromadb.errors import ChromaError
+                import requests.exceptions
+                
+                client = chromadb.HttpClient(host="localhost", port=8000)
+                
+                # Get or create the screen_ocr_history collection
+                collection = client.get_or_create_collection(
+                    name="screen_ocr_history",
+                    metadata={"description": "Screenshot OCR data"}
+                )
+                
+            except requests.exceptions.ConnectionError as conn_error:
+                logger.warning(f"ChromaDB server not available for bulk loading (is server running on localhost:8000?): {conn_error}")
+                logger.info("OCR files are safely stored as JSON files and can be loaded when ChromaDB is available")
+                return
+            except Exception as chroma_error:
+                logger.warning(f"ChromaDB initialization failed for bulk loading: {chroma_error}")
+                logger.info("OCR files are safely stored as JSON files and can be loaded when ChromaDB is available")
+                return
             
             # Get existing document IDs to avoid duplicates
             try:
@@ -299,7 +333,8 @@ class FlowRunner:
             logger.info(f"Bulk loading complete: {total_loaded} documents loaded, {total_skipped} skipped (already existed)")
             
         except Exception as error:
-            logger.error(f"Error in bulk loading existing OCR data: {error}")
+            logger.warning(f"Error in bulk loading existing OCR data: {error}")
+            logger.info("OCR files are safely stored as JSON files and can be processed individually or loaded later when ChromaDB is available")
     
     async def capture_all_screens(self):
         """Capture screen_ocr_history from all available screens."""
