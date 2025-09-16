@@ -25,10 +25,13 @@ pids
 logs
 *.log
 
-# Vector database and tracking data
+# Vector database and tracking data (contains private screen capture data)
 chroma-data/
 chroma.sqlite3
-chroma/chroma.sqlite3
+chroma/
+refinery/chroma/
+**/chroma.sqlite3
+**/chroma/
 screenhistory/
 
 # IDE and editor files
@@ -83,5 +86,6 @@ wheels/
 .installed.cfg
 *.egg
 
-# Refinery data files (generated during runtime)
+# Refinery data files (generated during runtime - contains private OCR data)
 refinery/data/
+refinery/chroma.sqlite3
