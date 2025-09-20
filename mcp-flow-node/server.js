@@ -85,6 +85,14 @@ class FlowMCPServer {
       
       // Change to refinery directory and start chroma using the virtual environment
       const chromaPath = path.join(this.refineryPath, '.venv', 'bin', 'chroma');
+      
+      // Check if chroma executable exists
+      try {
+        await fs.access(chromaPath);
+      } catch (error) {
+        throw new Error(`ChromaDB executable not found at ${chromaPath}. Make sure the virtual environment is set up correctly.`);
+      }
+      
       this.chromaProcess = spawn(chromaPath, ['run', '--host', 'localhost', '--port', '8000'], {
         cwd: this.refineryPath,
         detached: false,
@@ -101,6 +109,12 @@ class FlowMCPServer {
 
       this.chromaProcess.on('close', (code) => {
         console.error(`ChromaDB process exited with code ${code}`);
+        this.chromaProcess = null;
+        this.chromaInitialized = false;
+      });
+
+      this.chromaProcess.on('error', (error) => {
+        console.error(`ChromaDB process error: ${error.message}`);
         this.chromaProcess = null;
         this.chromaInitialized = false;
       });
@@ -136,6 +150,22 @@ class FlowMCPServer {
       
       // Start the Python flow runner using the virtual environment
       const pythonPath = path.join(this.refineryPath, '.venv', 'bin', 'python');
+      
+      // Check if python executable exists
+      try {
+        await fs.access(pythonPath);
+      } catch (error) {
+        throw new Error(`Python executable not found at ${pythonPath}. Make sure the virtual environment is set up correctly.`);
+      }
+      
+      // Check if run.py exists
+      const runPyPath = path.join(this.refineryPath, 'run.py');
+      try {
+        await fs.access(runPyPath);
+      } catch (error) {
+        throw new Error(`run.py not found at ${runPyPath}. Make sure you're in the correct directory.`);
+      }
+      
       this.flowRunnerProcess = spawn(pythonPath, ['run.py'], {
         cwd: this.refineryPath,
         detached: false,
@@ -152,6 +182,13 @@ class FlowMCPServer {
 
       this.flowRunnerProcess.on('close', (code) => {
         console.error(`Flow runner process exited with code ${code}`);
+        this.flowRunnerProcess = null;
+        this.isRecording = false;
+        this.saveState();
+      });
+
+      this.flowRunnerProcess.on('error', (error) => {
+        console.error(`Flow runner process error: ${error.message}`);
         this.flowRunnerProcess = null;
         this.isRecording = false;
         this.saveState();
