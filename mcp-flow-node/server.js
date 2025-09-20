@@ -83,8 +83,9 @@ class FlowMCPServer {
     try {
       console.error("Starting ChromaDB server...");
       
-      // Change to refinery directory and start chroma
-      this.chromaProcess = spawn('chroma', ['run', '--host', 'localhost', '--port', '8000'], {
+      // Change to refinery directory and start chroma using the virtual environment
+      const chromaPath = path.join(this.refineryPath, '.venv', 'bin', 'chroma');
+      this.chromaProcess = spawn(chromaPath, ['run', '--host', 'localhost', '--port', '8000'], {
         cwd: this.refineryPath,
         detached: false,
         stdio: ['ignore', 'pipe', 'pipe']
@@ -133,8 +134,9 @@ class FlowMCPServer {
     try {
       console.error("Starting Flow runner...");
       
-      // Start the Python flow runner
-      this.flowRunnerProcess = spawn('python', ['run.py'], {
+      // Start the Python flow runner using the virtual environment
+      const pythonPath = path.join(this.refineryPath, '.venv', 'bin', 'python');
+      this.flowRunnerProcess = spawn(pythonPath, ['run.py'], {
         cwd: this.refineryPath,
         detached: false,
         stdio: ['ignore', 'pipe', 'pipe']
