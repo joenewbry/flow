@@ -7,6 +7,12 @@
 ehthumbs.db
 Thumbs.db
 
+# Environment variables and secrets
+.env
+.env.local
+.env.production
+.env.staging
+
 
 # Dependencies
 node_modules/
