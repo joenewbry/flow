@@ -89,3 +89,7 @@ wheels/
 # Refinery data files (generated during runtime - contains private OCR data)
 refinery/data/
 refinery/chroma.sqlite3
+
+# Runtime state files
+.flow-state.json
+*/.flow-state.json
