@@ -4,19 +4,17 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://python.org)
 
-## Vector-based Screen History MCP server
+## Simple Vector-Based Screen History Search
 
 ![Example Usage](images/Example%20Usage.png)
 I wanted to have a simple history of what I've worked on. A year from now I'd like to be able to know what things I've been doing and at work people ask me for details on how to setup things I've long since forgotten about. 
 
 Now I can quickly remind myself of the context. :)
 
-This is a [vector search](https://en.wikipedia.org/wiki/Vector_database) system. So queries searching for specific terms may or may not be handled as well as queries for general terms.
+This is a ![vector search](https://en.wikipedia.org/wiki/Vector_database) system. So queries searching for specific terms may or may not be handled as well as queries for general terms.
 
 Ex of unsupported query: Find the last time the word *Banana* showed up on my screen.
 Ex of supported query: I drafted an email to Emily Smith about a month ago about dog sitting. Can you remind me what we talked about?
-
-A quick note on security: The OCR process happens on your machine and ChromaDB runs locally. But when you use an MCP client to interact with flow the returned results may be processed off your machine. So at that point it's up to you to decide what frontend client you want to use and what data you want to share with them.
 
 If you have feedback or comments please email joenewbry+flow@gmail.com
 
@@ -107,14 +105,12 @@ For detailed MCP setup instructions, see the [Claude Desktop MCP guide](https://
 2. Claude queries → MCP server → ChromaDB search → Results returned
 3. All processing happens automatically in the background
 
-![Dataflow Diagram](images/Dataflow%20Diagram.png)
+![Dataflow Diagram](images/Dataflow%Diagram.png)
 
 ## Feature List
-- [ ] Add audio recording via audio to text saving and search
-- [ ] Add support for creating sharable pages with markdown information. This will be flow.digitalsurface.com/{your-unique-page-id}.md. This makes sharing quick and easy and doesn't require someone to use a specific frontend client
-- [ ] Standup update tool added
-- [ ] Support for Visual Studio Code MCP Client (if possible)
-- [ ] Clearer / simpler install script
+[ ] Add audio recording via audio to text saving and search
+[ ] Add support for creating sharable pages with markdown information. This will be flow.digitalsurface.com/{your-unique-page-id}.md. This makes sharing quick and easy and doesn't require someone to use a specific frontend client
+[ ] Standup update tool added
 
 If you'd like specific features email joenewbry+flow@gmail.com
 ---

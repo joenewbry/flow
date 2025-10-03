@@ -18,11 +18,43 @@ import { fileURLToPath } from "url";
 import { spawn } from "child_process";
 import os from "os";
 
+// Enhanced logging utility
+class Logger {
+  constructor(name = 'FlowMCP') {
+    this.name = name;
+  }
+
+  _log(level, message, ...args) {
+    const timestamp = new Date().toISOString();
+    const prefix = `[${timestamp}] [${this.name}] [${level}]`;
+    console.error(`${prefix} ${message}`, ...args);
+  }
+
+  info(message, ...args) {
+    this._log('INFO', message, ...args);
+  }
+
+  warn(message, ...args) {
+    this._log('WARN', message, ...args);
+  }
+
+  error(message, ...args) {
+    this._log('ERROR', message, ...args);
+  }
+
+  debug(message, ...args) {
+    if (process.env.DEBUG || process.env.FLOW_DEBUG) {
+      this._log('DEBUG', message, ...args);
+    }
+  }
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 class FlowMCPServer {
   constructor() {
+    this.logger = new Logger('FlowMCPServer');
     this.server = new Server(
       {
         name: "flow",
@@ -57,9 +89,9 @@ class FlowMCPServer {
       const stateData = await fs.readFile(this.stateFile, 'utf8');
       const state = JSON.parse(stateData);
       this.isRecording = state.isRecording || false;
-      console.error(`Loaded state: recording=${this.isRecording}`);
+      this.logger.info(`Loaded state: recording=${this.isRecording}`);
     } catch (error) {
-      console.error(`No previous state found or error loading state: ${error.message}`);
+      this.logger.warn(`No previous state found or error loading state: ${error.message}`);
       this.isRecording = false;
     }
   }
@@ -307,6 +339,61 @@ class FlowMCPServer {
               additionalProperties: false,
             },
           },
+          {
+            name: "activity-graph",
+            description: "Generate activity timeline graph data showing when Flow was active capturing screens",
+            inputSchema: {
+              type: "object",
+              properties: {
+                days: {
+                  type: "integer", 
+                  description: "Number of days to include in the graph (default: 7)",
+                  default: 7,
+                },
+                grouping: {
+                  type: "string",
+                  description: "How to group the data: 'hourly', 'daily' (default: 'hourly')",
+                  enum: ["hourly", "daily"],
+                  default: "hourly",
+                },
+                include_empty: {
+                  type: "boolean",
+                  description: "Include time periods with no activity (default: true)",
+                  default: true,
+                },
+              },
+              additionalProperties: false,
+            },
+          },
+          {
+            name: "time-range-summary",
+            description: "Get a sampled summary of OCR data over a specified time range by returning up to 24 evenly distributed results",
+            inputSchema: {
+              type: "object",
+              properties: {
+                start_time: {
+                  type: "string",
+                  description: "Start time in ISO format (YYYY-MM-DDTHH:MM:SS) or date format (YYYY-MM-DD)",
+                },
+                end_time: {
+                  type: "string",
+                  description: "End time in ISO format (YYYY-MM-DDTHH:MM:SS) or date format (YYYY-MM-DD)",
+                },
+                max_results: {
+                  type: "integer",
+                  description: "Maximum number of results to return (default: 24, max: 100)",
+                  default: 24,
+                },
+                include_text: {
+                  type: "boolean",
+                  description: "Include OCR text content in results (default: true)",
+                  default: true,
+                },
+              },
+              required: ["start_time", "end_time"],
+              additionalProperties: false,
+            },
+          },
         ],
       };
     });
@@ -324,7 +411,9 @@ class FlowMCPServer {
               "Search for anything that you worked on while using flow. This includes urls, document titles, jira tickets, etc.",
               "Search OCR data from screenshots with optional date ranges",
               "Start and stop screenshot recording with ChromaDB integration",
-              "Get statistics about captured data"
+              "Get statistics about captured data",
+              "Generate activity timeline graphs showing when Flow was actively capturing screens",
+              "Get time-range summaries with sampled OCR data (up to 24 evenly distributed results)"
             ],
             description: "Flow is a screen activity tracking and analysis tool that helps you search and analyze your work patterns.",
             available_tools: [
@@ -332,7 +421,9 @@ class FlowMCPServer {
               "search-screenshots",
               "start-flow",
               "stop-flow",
-              "get-stats"
+              "get-stats",
+              "activity-graph",
+              "time-range-summary"
             ],
             current_status: {
               recording: this.isRecording,
@@ -481,6 +572,301 @@ class FlowMCPServer {
               end_date: endDate
             }
           };
+        } else if (name === "activity-graph") {
+          const days = args.days || 7;
+          const grouping = args.grouping || "hourly";
+          const includeEmpty = args.include_empty !== false;
+          
+          // Read and analyze OCR JSON files for activity data
+          const ocrDir = path.join(this.refineryPath, 'data', 'ocr');
+          let activityData = [];
+          
+          try {
+            const files = await fs.readdir(ocrDir);
+            const jsonFiles = files.filter(file => file.endsWith('.json'));
+            
+            // Calculate date range
+            const endDate = new Date();
+            const startDate = new Date(endDate.getTime() - (days * 24 * 60 * 60 * 1000));
+            
+            // Process files and extract timestamps
+            for (const file of jsonFiles) {
+              // Parse timestamp from filename: YYYY-MM-DDTHH-MM-SS-microseconds_ScreenName.json
+              const match = file.match(/^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{6})_(.+)\.json$/);
+              if (match) {
+                const timestampStr = match[1].replace(/-/g, ':').replace(/T(\d{2}):(\d{2}):(\d{2}):(\d{6})/, 'T$1:$2:$3.$4');
+                const fileDate = new Date(timestampStr);
+                
+                if (fileDate >= startDate && fileDate <= endDate) {
+                  try {
+                    const filePath = path.join(ocrDir, file);
+                    const fileContent = await fs.readFile(filePath, 'utf8');
+                    const data = JSON.parse(fileContent);
+                    
+                    activityData.push({
+                      timestamp: data.timestamp,
+                      screen_name: data.screen_name,
+                      text_length: data.text_length || 0,
+                      word_count: data.word_count || 0,
+                      has_content: (data.text_length || 0) > 0
+                    });
+                  } catch (error) {
+                    console.error(`Error reading file ${file}:`, error.message);
+                  }
+                }
+              }
+            }
+            
+            // Group data by time period
+            const groupedData = {};
+            
+            for (const activity of activityData) {
+              const date = new Date(activity.timestamp);
+              let key;
+              
+              if (grouping === "daily") {
+                key = date.toISOString().split('T')[0]; // YYYY-MM-DD
+              } else { // hourly
+                const hour = date.getHours().toString().padStart(2, '0');
+                key = `${date.toISOString().split('T')[0]} ${hour}:00`; // YYYY-MM-DD HH:00
+              }
+              
+              if (!groupedData[key]) {
+                groupedData[key] = {
+                  timestamp: key,
+                  capture_count: 0,
+                  total_text_length: 0,
+                  total_word_count: 0,
+                  screens: new Set(),
+                  has_content_count: 0
+                };
+              }
+              
+              groupedData[key].capture_count++;
+              groupedData[key].total_text_length += activity.text_length;
+              groupedData[key].total_word_count += activity.word_count;
+              groupedData[key].screens.add(activity.screen_name);
+              if (activity.has_content) {
+                groupedData[key].has_content_count++;
+              }
+            }
+            
+            // Convert sets to arrays and calculate averages
+            const timelineData = Object.values(groupedData).map(item => ({
+              timestamp: item.timestamp,
+              capture_count: item.capture_count,
+              avg_text_length: Math.round(item.total_text_length / item.capture_count) || 0,
+              avg_word_count: Math.round(item.total_word_count / item.capture_count) || 0,
+              unique_screens: item.screens.size,
+              content_percentage: Math.round((item.has_content_count / item.capture_count) * 100) || 0,
+              screen_names: Array.from(item.screens)
+            }));
+            
+            // Fill in empty periods if requested
+            if (includeEmpty) {
+              const allPeriods = [];
+              const currentDate = new Date(startDate);
+              
+              while (currentDate <= endDate) {
+                let key;
+                if (grouping === "daily") {
+                  key = currentDate.toISOString().split('T')[0];
+                  currentDate.setDate(currentDate.getDate() + 1);
+                } else { // hourly
+                  const hour = currentDate.getHours().toString().padStart(2, '0');
+                  key = `${currentDate.toISOString().split('T')[0]} ${hour}:00`;
+                  currentDate.setHours(currentDate.getHours() + 1);
+                }
+                
+                if (!groupedData[key]) {
+                  allPeriods.push({
+                    timestamp: key,
+                    capture_count: 0,
+                    avg_text_length: 0,
+                    avg_word_count: 0,
+                    unique_screens: 0,
+                    content_percentage: 0,
+                    screen_names: []
+                  });
+                } else {
+                  allPeriods.push(timelineData.find(item => item.timestamp === key));
+                }
+              }
+              
+              timelineData.length = 0;
+              timelineData.push(...allPeriods);
+            }
+            
+            // Sort by timestamp
+            timelineData.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+            
+            result = {
+              graph_type: "activity_timeline",
+              time_range: {
+                start_date: startDate.toISOString(),
+                end_date: endDate.toISOString(),
+                days: days
+              },
+              grouping: grouping,
+              data_summary: {
+                total_captures: activityData.length,
+                total_periods: timelineData.length,
+                active_periods: timelineData.filter(d => d.capture_count > 0).length,
+                unique_screens: [...new Set(activityData.map(a => a.screen_name))],
+                date_range_actual: {
+                  earliest: activityData.length > 0 ? Math.min(...activityData.map(a => new Date(a.timestamp))) : null,
+                  latest: activityData.length > 0 ? Math.max(...activityData.map(a => new Date(a.timestamp))) : null
+                }
+              },
+              timeline_data: timelineData,
+              visualization_suggestions: {
+                chart_types: ["line", "bar", "heatmap"],
+                recommended_chart: "line",
+                x_axis: "timestamp",
+                y_axis_options: ["capture_count", "avg_text_length", "content_percentage"],
+                recommended_y_axis: "capture_count",
+                color_coding: "unique_screens or content_percentage",
+                tips: [
+                  "Use line chart to show activity trends over time",
+                  "Bar chart works well for daily grouping",
+                  "Heatmap is excellent for hourly data across multiple days",
+                  "Color by content_percentage to highlight productive periods",
+                  "Filter out zero values for cleaner visualization of active periods"
+                ]
+              }
+            };
+            
+          } catch (error) {
+            result = {
+              error: `Failed to analyze activity data: ${error.message}`,
+              graph_type: "activity_timeline",
+              timeline_data: [],
+              time_range: { days: days, grouping: grouping }
+            };
+          }
+        } else if (name === "time-range-summary") {
+          const startTime = args.start_time;
+          const endTime = args.end_time;
+          const maxResults = Math.min(args.max_results || 24, 100);
+          const includeText = args.include_text !== false;
+          
+          try {
+            // Parse time ranges - handle both date and datetime formats
+            let startDate, endDate;
+            
+            if (startTime.includes('T')) {
+              startDate = new Date(startTime);
+            } else {
+              startDate = new Date(`${startTime}T00:00:00`);
+            }
+            
+            if (endTime.includes('T')) {
+              endDate = new Date(endTime);
+            } else {
+              endDate = new Date(`${endTime}T23:59:59`);
+            }
+            
+            if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+              throw new Error("Invalid date format. Use YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS format");
+            }
+            
+            if (startDate >= endDate) {
+              throw new Error("Start time must be before end time");
+            }
+            
+            // Read and filter OCR files within time range
+            const ocrDir = path.join(this.refineryPath, 'data', 'ocr');
+            const files = await fs.readdir(ocrDir);
+            const jsonFiles = files.filter(file => file.endsWith('.json'));
+            
+            let filteredData = [];
+            
+            for (const file of jsonFiles) {
+              // Parse timestamp from filename: YYYY-MM-DDTHH-MM-SS-microseconds_ScreenName.json
+              const match = file.match(/^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{6})_(.+)\.json$/);
+              if (match) {
+                const timestampStr = match[1].replace(/-/g, ':').replace(/T(\d{2}):(\d{2}):(\d{2}):(\d{6})/, 'T$1:$2:$3.$4');
+                const fileDate = new Date(timestampStr);
+                
+                if (fileDate >= startDate && fileDate <= endDate) {
+                  try {
+                    const filePath = path.join(ocrDir, file);
+                    const fileContent = await fs.readFile(filePath, 'utf8');
+                    const data = JSON.parse(fileContent);
+                    
+                    filteredData.push({
+                      filename: file,
+                      timestamp: data.timestamp,
+                      screen_name: data.screen_name,
+                      text_length: data.text_length || 0,
+                      word_count: data.word_count || 0,
+                      text: includeText ? data.text : undefined,
+                      screenshot_path: data.screenshot_path,
+                      source: data.source
+                    });
+                  } catch (error) {
+                    console.error(`Error reading file ${file}:`, error.message);
+                  }
+                }
+              }
+            }
+            
+            // Sort by timestamp
+            filteredData.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            
+            // Sample the data if we have more items than maxResults
+            let sampledData = filteredData;
+            let samplingInfo = { sampled: false, total_items: filteredData.length };
+            
+            if (filteredData.length > maxResults) {
+              samplingInfo.sampled = true;
+              samplingInfo.step_size = Math.floor(filteredData.length / maxResults);
+              samplingInfo.sampling_method = "evenly_distributed";
+              
+              sampledData = [];
+              const step = filteredData.length / maxResults;
+              
+              for (let i = 0; i < maxResults; i++) {
+                const index = Math.floor(i * step);
+                if (index < filteredData.length) {
+                  sampledData.push(filteredData[index]);
+                }
+              }
+            }
+            
+            result = {
+              summary_type: "time_range_sampling",
+              time_range: {
+                start_time: startDate.toISOString(),
+                end_time: endDate.toISOString(),
+                duration_hours: Math.round((endDate - startDate) / (1000 * 60 * 60) * 100) / 100
+              },
+              sampling_info: samplingInfo,
+              results_summary: {
+                total_items_in_range: filteredData.length,
+                returned_items: sampledData.length,
+                total_text_length: sampledData.reduce((sum, item) => sum + item.text_length, 0),
+                total_word_count: sampledData.reduce((sum, item) => sum + item.word_count, 0),
+                unique_screens: [...new Set(sampledData.map(item => item.screen_name))],
+                time_span: {
+                  earliest: sampledData.length > 0 ? sampledData[0].timestamp : null,
+                  latest: sampledData.length > 0 ? sampledData[sampledData.length - 1].timestamp : null
+                }
+              },
+              data: sampledData
+            };
+            
+          } catch (error) {
+            result = {
+              error: `Failed to generate time range summary: ${error.message}`,
+              summary_type: "time_range_sampling",
+              time_range: {
+                start_time: startTime,
+                end_time: endTime
+              },
+              data: []
+            };
+          }
         } else {
           throw new Error(`Unknown tool: ${name}`);
         }
