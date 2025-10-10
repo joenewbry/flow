@@ -216,6 +216,44 @@ async def broadcast_status_update():
         logger.error(f"Error broadcasting status update: {e}")
 
 
+@app.get("/api/mcp-status")
+async def get_mcp_status():
+    """Get MCP server status and client information."""
+    try:
+        # Check if MCP server is running
+        import subprocess
+        import os
+        
+        mcp_status = {
+            "running": False,
+            "clients": 0,
+            "last_request": None,
+            "active_connections": []
+        }
+        
+        # Check if MCP server process is running
+        try:
+            # Look for the MCP server process
+            result = subprocess.run(['pgrep', '-f', 'mcp-server'], 
+                                  capture_output=True, text=True)
+            if result.returncode == 0:
+                mcp_status["running"] = True
+                
+                # Simulate client tracking (in real implementation, this would be actual data)
+                # You could track this via log files, shared memory, or a database
+                mcp_status["clients"] = 1 if result.stdout.strip() else 0
+                mcp_status["last_request"] = "2024-01-01T12:00:00Z"  # Placeholder
+                
+        except Exception as e:
+            logger.error(f"Error checking MCP server process: {e}")
+        
+        return JSONResponse(content=mcp_status)
+        
+    except Exception as e:
+        logger.error(f"Error getting MCP status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
@@ -225,7 +263,7 @@ async def health_check():
 if __name__ == "__main__":
     # Configuration
     host = os.getenv("HOST", "127.0.0.1")
-    port = int(os.getenv("PORT", "8081"))
+    port = int(os.getenv("PORT", "8082"))
     
     # Log the address we're trying to bind to
     logger.info(f"Starting Flow Dashboard server on {host}:{port}")

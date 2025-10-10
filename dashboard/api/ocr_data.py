@@ -270,6 +270,8 @@ class OCRDataService:
                     # Create grouping key
                     if grouping == "daily":
                         key = timestamp.strftime("%Y-%m-%d")
+                    elif grouping == "minutely":
+                        key = timestamp.strftime("%Y-%m-%d %H:%M")
                     else:  # hourly
                         key = timestamp.strftime("%Y-%m-%d %H:00")
                     
@@ -350,11 +352,18 @@ class OCRDataService:
             existing_timestamps = {item["timestamp"] for item in timeline_data}
             
             current_time = start_time
-            increment = timedelta(days=1) if grouping == "daily" else timedelta(hours=1)
+            if grouping == "daily":
+                increment = timedelta(days=1)
+            elif grouping == "minutely":
+                increment = timedelta(minutes=1)
+            else:  # hourly
+                increment = timedelta(hours=1)
             
             while current_time <= end_time:
                 if grouping == "daily":
                     key = current_time.strftime("%Y-%m-%d")
+                elif grouping == "minutely":
+                    key = current_time.strftime("%Y-%m-%d %H:%M")
                 else:  # hourly
                     key = current_time.strftime("%Y-%m-%d %H:00")
                 
@@ -475,8 +484,8 @@ async def get_stats():
 
 @router.get("/activity-data")
 async def get_activity_data(
-    hours: int = Query(24, ge=1, le=168, description="Number of hours to include"),
-    grouping: str = Query("hourly", regex="^(hourly|daily)$", description="Time grouping"),
+    hours: int = Query(72, ge=1, le=168, description="Number of hours to include"),
+    grouping: str = Query("minutely", regex="^(minutely|hourly|daily)$", description="Time grouping"),
     include_empty: bool = Query(True, description="Include empty time periods")
 ):
     """Get activity timeline data for graphs."""

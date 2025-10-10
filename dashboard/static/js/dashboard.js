@@ -12,6 +12,12 @@ class FlowDashboard {
         this.healthCheckInterval = null;
         this.showNotifications = true;
         
+        // Hamster and countdown tracking
+        this.countdownInterval = null;
+        this.secondsRemaining = 60;
+        this.mcpClients = [];
+        this.lastMcpRequest = null;
+        
         // Bind methods
         this.handleWebSocketMessage = this.handleWebSocketMessage.bind(this);
         this.handleWebSocketClose = this.handleWebSocketClose.bind(this);
@@ -47,6 +53,12 @@ class FlowDashboard {
         
         // Set up periodic updates
         this.startPeriodicUpdates();
+        
+        // Start hamster countdown
+        this.startCountdown();
+        
+        // Start MCP monitoring
+        this.startMcpMonitoring();
         
         console.log('Dashboard initialized successfully');
     }
@@ -442,36 +454,76 @@ class FlowDashboard {
             data: {
                 labels: activityData.labels,
                 datasets: [{
-                    label: 'Captures with Content',
+                    label: 'CAPTURES WITH CONTENT',
                     data: activityData.contentData,
-                    backgroundColor: '#4CAF50',
-                    borderColor: '#4CAF50',
-                    borderWidth: 1
+                    backgroundColor: '#000000',
+                    borderColor: '#000000',
+                    borderWidth: 2
                 }, {
-                    label: 'Empty Captures',
+                    label: 'EMPTY CAPTURES',
                     data: activityData.emptyData,
-                    backgroundColor: '#FFC107',
-                    borderColor: '#FFC107',
-                    borderWidth: 1
+                    backgroundColor: '#808080',
+                    borderColor: '#000000',
+                    borderWidth: 2
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                animation: false, // Disable animations for pixel art feel
                 scales: {
                     x: {
                         stacked: true,
+                        grid: {
+                            color: '#000000',
+                            lineWidth: 1
+                        },
+                        ticks: {
+                            color: '#000000',
+                            font: {
+                                family: 'Courier New, Monaco, monospace',
+                                weight: 'bold',
+                                size: 10
+                            },
+                            maxRotation: 0,
+                            minRotation: 0
+                        },
                         title: {
                             display: true,
-                            text: 'Time'
+                            text: 'TIME',
+                            color: '#000000',
+                            font: {
+                                family: 'Courier New, Monaco, monospace',
+                                weight: 'bold',
+                                size: 12
+                            }
                         }
                     },
                     y: {
                         stacked: true,
                         beginAtZero: true,
+                        grid: {
+                            color: '#000000',
+                            lineWidth: 1
+                        },
+                        ticks: {
+                            color: '#000000',
+                            font: {
+                                family: 'Courier New, Monaco, monospace',
+                                weight: 'bold',
+                                size: 10
+                            },
+                            stepSize: 1
+                        },
                         title: {
                             display: true,
-                            text: 'Number of Captures'
+                            text: 'CAPTURES',
+                            color: '#000000',
+                            font: {
+                                family: 'Courier New, Monaco, monospace',
+                                weight: 'bold',
+                                size: 12
+                            }
                         }
                     }
                 },
@@ -480,9 +532,22 @@ class FlowDashboard {
                         display: false // We have custom legend
                     },
                     tooltip: {
+                        backgroundColor: '#ffffff',
+                        titleColor: '#000000',
+                        bodyColor: '#000000',
+                        borderColor: '#000000',
+                        borderWidth: 2,
+                        titleFont: {
+                            family: 'Courier New, Monaco, monospace',
+                            weight: 'bold'
+                        },
+                        bodyFont: {
+                            family: 'Courier New, Monaco, monospace',
+                            weight: 'bold'
+                        },
                         callbacks: {
                             title: function(context) {
-                                return `Time: ${context[0].label}`;
+                                return `TIME: ${context[0].label}`;
                             },
                             label: function(context) {
                                 return `${context.dataset.label}: ${context.parsed.y}`;
@@ -498,10 +563,100 @@ class FlowDashboard {
         });
     }
     
+    startCountdown() {
+        this.countdownInterval = setInterval(() => {
+            this.secondsRemaining--;
+            
+            const countdownElement = document.getElementById('countdown');
+            if (countdownElement) {
+                countdownElement.textContent = this.secondsRemaining;
+            }
+            
+            // When countdown reaches 0, trigger screenshot and reset
+            if (this.secondsRemaining <= 0) {
+                this.triggerScreenshot();
+                this.secondsRemaining = 60;
+            }
+        }, 1000);
+    }
+    
+    triggerScreenshot() {
+        // Flash the start line to indicate screenshot
+        const startLine = document.querySelector('.start-line');
+        if (startLine) {
+            startLine.style.backgroundColor = 'var(--pixel-black)';
+            startLine.style.color = 'var(--pixel-white)';
+            setTimeout(() => {
+                startLine.style.backgroundColor = '';
+                startLine.style.color = '';
+            }, 500);
+        }
+        
+        // Show toast notification
+        this.showToast('SCREENSHOT CAPTURED!', 'success', 2000);
+        
+        console.log('Screenshot triggered at:', new Date().toISOString());
+    }
+    
+    startMcpMonitoring() {
+        // Check MCP server status every 30 seconds
+        setInterval(() => {
+            this.checkMcpStatus();
+        }, 30000);
+        
+        // Initial check
+        this.checkMcpStatus();
+    }
+    
+    async checkMcpStatus() {
+        try {
+            const response = await fetch('/api/mcp-status');
+            const mcpData = await response.json();
+            
+            const mcpStatusElement = document.getElementById('mcp-status');
+            const mcpClientsElement = document.getElementById('mcp-clients');
+            const mcpLastRequestElement = document.getElementById('mcp-last-request');
+            
+            if (mcpStatusElement) {
+                mcpStatusElement.textContent = mcpData.running ? 'RUNNING' : 'STOPPED';
+            }
+            
+            if (mcpClientsElement) {
+                mcpClientsElement.textContent = mcpData.clients || 0;
+            }
+            
+            if (mcpLastRequestElement) {
+                if (mcpData.last_request) {
+                    const lastRequest = new Date(mcpData.last_request);
+                    mcpLastRequestElement.textContent = lastRequest.toLocaleTimeString();
+                } else {
+                    mcpLastRequestElement.textContent = 'NEVER';
+                }
+            }
+            
+            // Update MCP badge status
+            const mcpBadge = document.getElementById('mcp-badge');
+            if (mcpBadge) {
+                const badgeText = mcpBadge.querySelector('.badge-text');
+                if (badgeText) {
+                    badgeText.textContent = mcpData.running ? 'RUNNING' : 'STOPPED';
+                }
+                mcpBadge.className = `status-badge ${mcpData.running ? 'running' : 'stopped'}`;
+            }
+            
+        } catch (error) {
+            console.error('Error checking MCP status:', error);
+            const mcpStatusElement = document.getElementById('mcp-status');
+            if (mcpStatusElement) {
+                mcpStatusElement.textContent = 'ERROR';
+            }
+        }
+    }
+
     async fetchActivityData() {
         try {
-            const timeRange = document.getElementById('time-range')?.value || '24';
-            const grouping = document.getElementById('grouping')?.value || 'hourly';
+            const timeRange = document.getElementById('time-range')?.value || '72'; // Default to 3 days
+            const grouping = 'minutely'; // Force minute-by-minute
             
             console.log(`Fetching activity data: ${timeRange}h, ${grouping}`);
             
@@ -530,30 +685,25 @@ class FlowDashboard {
             
             const labels = data.timeline_data.map(item => {
                 try {
-                    if (grouping === 'hourly') {
-                        // Handle "YYYY-MM-DD HH:00" format
-                        if (item.timestamp.includes(' ')) {
-                            const [datePart, timePart] = item.timestamp.split(' ');
-                            const date = new Date(`${datePart}T${timePart}:00`);
-                            return date.toLocaleTimeString([], { 
-                                month: 'short', 
-                                day: 'numeric', 
-                                hour: '2-digit', 
-                                minute: '2-digit' 
-                            });
-                        } else {
-                            // Handle ISO format
-                            const date = new Date(item.timestamp);
-                            return date.toLocaleTimeString([], { 
-                                month: 'short', 
-                                day: 'numeric', 
-                                hour: '2-digit', 
-                                minute: '2-digit' 
-                            });
-                        }
+                    const date = new Date(item.timestamp);
+                    if (grouping === 'minutely') {
+                        // For minute-by-minute data, show only day marks
+                        const dayStart = new Date(date);
+                        dayStart.setHours(0, 0, 0, 0);
+                        
+                        // Only show label if this is the first entry of a new day
+                        const isNewDay = date.getHours() === 0 && date.getMinutes() === 0;
+                        return isNewDay ? date.toLocaleDateString([], { 
+                            month: 'short', 
+                            day: 'numeric' 
+                        }) : '';
+                    } else if (grouping === 'hourly') {
+                        return date.toLocaleTimeString([], { 
+                            month: 'short', 
+                            day: 'numeric', 
+                            hour: '2-digit' 
+                        });
                     } else {
-                        // Daily format
-                        const date = new Date(item.timestamp);
                         return date.toLocaleDateString([], { 
                             month: 'short', 
                             day: 'numeric' 

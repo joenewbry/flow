@@ -20,8 +20,6 @@ import pyaudio
 import wave
 import whisper
 import numpy as np
-from pydub import AudioSegment
-from pydub.silence import split_on_silence
 
 
 class AudioRecorder:

@@ -12,48 +12,98 @@
     <div class="container">
         <!-- Header -->
         <header class="header">
-            <h1>Flow Dashboard</h1>
+            <h1>█▀▀ █   █▀█ █ █ █</h1>
             <div class="header-info">
-                <span class="version">v1.0.0</span>
+                <span class="version">v1.0</span>
                 <div class="status-indicator" id="connection-status">
-                    <span class="status-dot"></span>
-                    <span class="status-text">Connected</span>
+                    <span class="status-dot">●</span>
+                    <span class="status-text">ONLINE</span>
                 </div>
             </div>
         </header>
 
         <!-- Main Content -->
         <main class="main-content">
+            <!-- Hamster Track Section -->
+            <section class="hamster-section">
+                <h2>▓▓▓ HAMSTER POWER ▓▓▓</h2>
+                <div class="track-container">
+                    <div class="track-outer">
+                        <div class="track-inner">
+                            <div class="hamster" id="hamster">
+                                <div class="hamster-sprite">🐹</div>
+                            </div>
+                            <div class="start-line">START</div>
+                            <div class="track-center">
+                                <div class="next-screenshot">
+                                    <div class="countdown" id="countdown">60</div>
+                                    <div class="label">SECONDS</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Statistics Panel (moved below hamster) -->
+            <section class="stats-section">
+                <h2>▓▓▓ STATISTICS ▓▓▓</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>TOTAL CAPTURES</h3>
+                        <div class="stat-value" id="total-captures">{{ stats.total_captures or 0 }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>UNIQUE SCREENS</h3>
+                        <div class="stat-value" id="unique-screens">{{ stats.unique_screens or 0 }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>AVG TEXT LENGTH</h3>
+                        <div class="stat-value" id="avg-text-length">{{ stats.avg_text_length or 0 }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>DATE RANGE</h3>
+                        <div class="stat-value small" id="date-range">
+                            {% if stats.date_range %}
+                                {{ stats.date_range.earliest[:10] }} to {{ stats.date_range.latest[:10] }}
+                            {% else %}
+                                NO DATA
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <!-- System Status Panel -->
             <section class="status-panel">
-                <h2>System Status</h2>
+                <h2>▓▓▓ SYSTEM STATUS ▓▓▓</h2>
                 <div class="status-grid">
                     <div class="status-card" id="overall-status">
                         <div class="status-header">
-                            <h3>Overall System</h3>
+                            <h3>OVERALL SYSTEM</h3>
                             <div class="status-badge" id="overall-badge">
-                                <span class="badge-text">{{ status.overall_status|title }}</span>
+                                <span class="badge-text">{{ status.overall_status|upper }}</span>
                             </div>
                         </div>
                         <div class="status-controls">
                             <button id="start-btn" class="btn btn-success" onclick="startSystem()">
-                                <span class="btn-icon">▶</span> Start
+                                ▶ START
                             </button>
                             <button id="stop-btn" class="btn btn-danger" onclick="stopSystem()">
-                                <span class="btn-icon">⏹</span> Stop
+                                ■ STOP
                             </button>
                         </div>
                     </div>
 
                     <div class="status-card">
                         <div class="status-header">
-                            <h3>ChromaDB Server</h3>
+                            <h3>CHROMADB SERVER</h3>
                             <div class="status-badge" id="chroma-badge">
-                                <span class="badge-text">{{ "Running" if status.chroma_db.running else "Stopped" }}</span>
+                                <span class="badge-text">{{ "RUNNING" if status.chroma_db.running else "STOPPED" }}</span>
                             </div>
                         </div>
                         <div class="status-details">
-                            <p>Health: <span id="chroma-health">{{ "Healthy" if status.chroma_db.healthy else "Unhealthy" }}</span></p>
+                            <p>HEALTH: <span id="chroma-health">{{ "OK" if status.chroma_db.healthy else "ERROR" }}</span></p>
                             {% if status.chroma_db.pid %}
                             <p>PID: <span id="chroma-pid">{{ status.chroma_db.pid }}</span></p>
                             {% endif %}
@@ -62,38 +112,46 @@
 
                     <div class="status-card">
                         <div class="status-header">
-                            <h3>Screen Capture</h3>
+                            <h3>SCREEN CAPTURE</h3>
                             <div class="status-badge" id="capture-badge">
-                                <span class="badge-text">{{ "Running" if status.screen_capture.running else "Stopped" }}</span>
+                                <span class="badge-text">{{ "RUNNING" if status.screen_capture.running else "STOPPED" }}</span>
                             </div>
                         </div>
                         <div class="status-details">
-                            <p>Health: <span id="capture-health">{{ "Healthy" if status.screen_capture.healthy else "Unhealthy" }}</span></p>
+                            <p>HEALTH: <span id="capture-health">{{ "OK" if status.screen_capture.healthy else "ERROR" }}</span></p>
                             {% if status.screen_capture.pid %}
                             <p>PID: <span id="capture-pid">{{ status.screen_capture.pid }}</span></p>
                             {% endif %}
                         </div>
                     </div>
+
+                    <div class="status-card">
+                        <div class="status-header">
+                            <h3>MCP SERVER</h3>
+                            <div class="status-badge" id="mcp-badge">
+                                <span class="badge-text" id="mcp-status">CHECKING</span>
+                            </div>
+                        </div>
+                        <div class="status-details">
+                            <p>CLIENTS: <span id="mcp-clients">0</span></p>
+                            <p>LAST REQUEST: <span id="mcp-last-request">NEVER</span></p>
+                        </div>
+                    </div>
                 </div>
             </section>
 
-            <!-- OCR Activity Graph -->
+            <!-- OCR Activity Timeline -->
             <section class="activity-section">
                 <div class="section-header">
-                    <h2>OCR Activity Timeline</h2>
+                    <h2>▓▓▓ ACTIVITY TIMELINE ▓▓▓</h2>
                     <div class="time-controls">
                         <select id="time-range" onchange="updateActivityGraph()">
-                            <option value="6">Last 6 Hours</option>
-                            <option value="24" selected>Last 24 Hours</option>
-                            <option value="72">Last 3 Days</option>
+                            <option value="24">Last 24 Hours</option>
+                            <option value="72" selected>Last 3 Days</option>
                             <option value="168">Last Week</option>
                         </select>
-                        <select id="grouping" onchange="updateActivityGraph()">
-                            <option value="hourly" selected>Hourly</option>
-                            <option value="daily">Daily</option>
-                        </select>
                         <button class="btn btn-secondary" onclick="refreshActivityGraph()">
-                            <span class="btn-icon">🔄</span> Refresh
+                            ↻ REFRESH
                         </button>
                     </div>
                 </div>
@@ -102,247 +160,29 @@
                 </div>
                 <div class="chart-legend">
                     <div class="legend-item">
-                        <span class="legend-color" style="background-color: #4CAF50;"></span>
-                        <span>Captures with Content</span>
+                        <span class="legend-color active"></span>
+                        <span>CAPTURES WITH CONTENT</span>
                     </div>
                     <div class="legend-item">
-                        <span class="legend-color" style="background-color: #FFC107;"></span>
-                        <span>Empty Captures</span>
-                    </div>
-                    <div class="legend-item">
-                        <span class="legend-color" style="background-color: #f5f5f5;"></span>
-                        <span>No Activity</span>
+                        <span class="legend-color empty"></span>
+                        <span>EMPTY CAPTURES</span>
                     </div>
                 </div>
             </section>
 
-            <!-- Statistics Panel -->
-            <section class="stats-section">
-                <h2>Statistics</h2>
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <h3>Total Captures</h3>
-                        <div class="stat-value" id="total-captures">{{ stats.total_captures or 0 }}</div>
-                    </div>
-                    <div class="stat-card">
-                        <h3>Unique Screens</h3>
-                        <div class="stat-value" id="unique-screens">{{ stats.unique_screens or 0 }}</div>
-                    </div>
-                    <div class="stat-card">
-                        <h3>Avg Text Length</h3>
-                        <div class="stat-value" id="avg-text-length">{{ stats.avg_text_length or 0 }}</div>
-                    </div>
-                    <div class="stat-card">
-                        <h3>Date Range</h3>
-                        <div class="stat-value small" id="date-range">
-                            {% if stats.date_range %}
-                                {{ stats.date_range.earliest[:10] }} to {{ stats.date_range.latest[:10] }}
-                            {% else %}
-                                No data
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-            </section>
 
-            <!-- System Configuration -->
-            <section class="config-section">
-                <div class="section-header">
-                    <h2>System Configuration</h2>
-                    <div class="config-controls">
-                        <button class="btn btn-secondary" onclick="resetToDefaults()">
-                            <span class="btn-icon">🔄</span> Reset to Defaults
-                        </button>
-                        <button class="btn btn-primary" onclick="saveConfiguration()">
-                            <span class="btn-icon">💾</span> Save Configuration
-                        </button>
-                    </div>
-                </div>
-
-                <div class="config-grid">
-                    <div class="config-group">
-                        <h3>Screen Capture Settings</h3>
-                        <div class="config-item">
-                            <label for="capture-interval">Capture Interval (seconds)</label>
-                            <input type="number" id="capture-interval" min="10" max="300" value="60" class="config-input">
-                            <small>How often to take screenshots (10-300 seconds)</small>
-                        </div>
-                        <div class="config-item">
-                            <label for="max-concurrent-ocr">Max Concurrent OCR</label>
-                            <input type="number" id="max-concurrent-ocr" min="1" max="8" value="4" class="config-input">
-                            <small>Maximum parallel OCR processes (1-8)</small>
-                        </div>
-                        <div class="config-item">
-                            <label for="auto-start">Auto-start on Boot</label>
-                            <input type="checkbox" id="auto-start" class="config-checkbox">
-                            <small>Automatically start Flow when the dashboard starts</small>
-                        </div>
-                    </div>
-
-                    <div class="config-group">
-                        <h3>Data Management</h3>
-                        <div class="config-item">
-                            <label for="data-retention">Data Retention (days)</label>
-                            <input type="number" id="data-retention" min="7" max="365" value="90" class="config-input">
-                            <small>How long to keep OCR data (7-365 days, 0 = forever)</small>
-                        </div>
-                        <div class="config-item">
-                            <label for="max-file-size">Max OCR File Size (MB)</label>
-                            <input type="number" id="max-file-size" min="1" max="100" value="10" class="config-input">
-                            <small>Maximum size for individual OCR files</small>
-                        </div>
-                        <div class="config-item">
-                            <label for="compress-old-data">Compress Old Data</label>
-                            <input type="checkbox" id="compress-old-data" class="config-checkbox" checked>
-                            <small>Compress OCR data older than 30 days</small>
-                        </div>
-                    </div>
-
-                    <div class="config-group">
-                        <h3>Dashboard Settings</h3>
-                        <div class="config-item">
-                            <label for="theme-mode">Theme</label>
-                            <select id="theme-mode" class="config-select">
-                                <option value="light">Light</option>
-                                <option value="dark">Dark</option>
-                                <option value="auto">Auto (System)</option>
-                            </select>
-                            <small>Dashboard color theme</small>
-                        </div>
-                        <div class="config-item">
-                            <label for="refresh-interval">Refresh Interval (seconds)</label>
-                            <input type="number" id="refresh-interval" min="5" max="300" value="30" class="config-input">
-                            <small>How often to refresh dashboard data</small>
-                        </div>
-                        <div class="config-item">
-                            <label for="show-notifications">Show Notifications</label>
-                            <input type="checkbox" id="show-notifications" class="config-checkbox" checked>
-                            <small>Display toast notifications for system events</small>
-                        </div>
-                    </div>
-
-                    <div class="config-group">
-                        <h3>Advanced Settings</h3>
-                        <div class="config-item">
-                            <label for="log-level">Log Level</label>
-                            <select id="log-level" class="config-select">
-                                <option value="ERROR">Error</option>
-                                <option value="WARNING">Warning</option>
-                                <option value="INFO" selected>Info</option>
-                                <option value="DEBUG">Debug</option>
-                            </select>
-                            <small>System logging verbosity</small>
-                        </div>
-                        <div class="config-item">
-                            <label for="enable-telemetry">Enable Telemetry</label>
-                            <input type="checkbox" id="enable-telemetry" class="config-checkbox">
-                            <small>Send anonymous usage statistics (helps improve Flow)</small>
-                        </div>
-                        <div class="config-item">
-                            <label for="experimental-features">Experimental Features</label>
-                            <input type="checkbox" id="experimental-features" class="config-checkbox">
-                            <small>Enable experimental and beta features</small>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="config-status">
-                    <div class="status-item">
-                        <span class="status-label">Configuration Status:</span>
-                        <span class="status-value" id="config-status">Default</span>
-                    </div>
-                    <div class="status-item">
-                        <span class="status-label">Last Saved:</span>
-                        <span class="status-value" id="config-last-saved">Never</span>
-                    </div>
-                </div>
-            </section>
-
-            <!-- System Logs -->
-            <section class="logs-section">
-                <div class="section-header">
-                    <h2>System Logs</h2>
-                    <div class="logs-controls">
-                        <select id="log-filter" class="log-filter">
-                            <option value="all">All Levels</option>
-                            <option value="ERROR">Errors Only</option>
-                            <option value="WARNING">Warnings & Errors</option>
-                            <option value="INFO">Info & Above</option>
-                            <option value="DEBUG">Debug & Above</option>
-                        </select>
-                        <button class="btn btn-secondary" onclick="clearLogs()">
-                            <span class="btn-icon">🗑️</span> Clear Logs
-                        </button>
-                        <button class="btn btn-secondary" onclick="refreshLogs()">
-                            <span class="btn-icon">🔄</span> Refresh
-                        </button>
-                        <button class="btn btn-primary" onclick="downloadLogs()">
-                            <span class="btn-icon">💾</span> Download
-                        </button>
-                    </div>
-                </div>
-
-                <div class="logs-stats">
-                    <div class="log-stat">
-                        <span class="log-stat-label">Total Entries:</span>
-                        <span class="log-stat-value" id="logs-total">0</span>
-                    </div>
-                    <div class="log-stat">
-                        <span class="log-stat-label">Errors:</span>
-                        <span class="log-stat-value error" id="logs-errors">0</span>
-                    </div>
-                    <div class="log-stat">
-                        <span class="log-stat-label">Warnings:</span>
-                        <span class="log-stat-value warning" id="logs-warnings">0</span>
-                    </div>
-                    <div class="log-stat">
-                        <span class="log-stat-label">Auto-refresh:</span>
-                        <label class="log-toggle">
-                            <input type="checkbox" id="logs-auto-refresh" checked>
-                            <span class="log-toggle-slider"></span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="logs-container">
-                    <div class="logs-header">
-                        <div class="log-col-time">Time</div>
-                        <div class="log-col-level">Level</div>
-                        <div class="log-col-source">Source</div>
-                        <div class="log-col-message">Message</div>
-                    </div>
-                    <div class="logs-content" id="logs-content">
-                        <div class="logs-empty">
-                            <div class="logs-empty-icon">📋</div>
-                            <div class="logs-empty-text">No logs available</div>
-                            <div class="logs-empty-subtext">System logs will appear here as they are generated</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="logs-footer">
-                    <div class="logs-pagination">
-                        <button class="btn btn-sm btn-secondary" onclick="loadMoreLogs()" id="load-more-logs" style="display: none;">
-                            Load More Logs
-                        </button>
-                    </div>
-                    <div class="logs-info">
-                        <small>Logs are updated in real-time. Use filters to focus on specific log levels.</small>
-                    </div>
-                </div>
-            </section>
 
             <!-- Search Interface -->
             <section class="search-section">
-                <h2>Search OCR Data</h2>
+                <h2>▓▓▓ SEARCH OCR DATA ▓▓▓</h2>
                 <div class="search-container">
                     <div class="search-form">
-                        <input type="text" id="search-query" placeholder="Search for text in screenshots..." class="search-input">
+                        <input type="text" id="search-query" placeholder="SEARCH FOR TEXT IN SCREENSHOTS..." class="search-input">
                         <div class="search-filters">
                             <input type="date" id="search-start-date" class="date-input">
                             <input type="date" id="search-end-date" class="date-input">
                             <button class="btn btn-primary" onclick="performSearch()">
-                                <span class="btn-icon">🔍</span> Search
+                                🔍 SEARCH
                             </button>
                         </div>
                     </div>
@@ -358,215 +198,6 @@
                 </div>
             </section>
 
-            <!-- Available Tools -->
-            <section class="tools-section">
-                <div class="section-header">
-                    <h2>MCP Tools</h2>
-                    <div class="tools-controls">
-                        <button class="btn btn-secondary" onclick="refreshToolsStatus()">
-                            <span class="btn-icon">🔄</span> Refresh Status
-                        </button>
-                        <button class="btn btn-primary" onclick="testMCPConnection()">
-                            <span class="btn-icon">🔧</span> Test MCP Server
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="tools-status-bar">
-                    <div class="status-item">
-                        <span class="status-label">MCP Server:</span>
-                        <span class="status-value" id="mcp-server-status">Unknown</span>
-                    </div>
-                    <div class="status-item">
-                        <span class="status-label">Available Tools:</span>
-                        <span class="status-value" id="tools-count">7</span>
-                    </div>
-                    <div class="status-item">
-                        <span class="status-label">Last Updated:</span>
-                        <span class="status-value" id="tools-last-updated">Never</span>
-                    </div>
-                </div>
-
-                <div class="tools-grid" id="tools-grid">
-                    <div class="tool-card" data-tool="search-screenshots">
-                        <div class="tool-header">
-                            <h3>Search Screenshots</h3>
-                            <div class="tool-status">
-                                <span class="status-dot available"></span>
-                                <span class="status-text">Available</span>
-                            </div>
-                        </div>
-                        <p class="tool-description">Search OCR data from captured screenshots with date filtering and relevance scoring</p>
-                        <div class="tool-details">
-                            <div class="tool-params">
-                                <strong>Parameters:</strong> query (required), start_date, end_date, limit
-                            </div>
-                            <div class="tool-usage">
-                                <strong>Usage:</strong> Perfect for finding specific content in your screen history
-                            </div>
-                        </div>
-                        <div class="tool-actions">
-                            <button class="btn btn-sm btn-secondary" onclick="testTool('search-screenshots')">Test Tool</button>
-                            <button class="btn btn-sm btn-primary" onclick="showToolExample('search-screenshots')">Show Example</button>
-                        </div>
-                    </div>
-
-                    <div class="tool-card" data-tool="what-can-i-do">
-                        <div class="tool-header">
-                            <h3>What Can I Do</h3>
-                            <div class="tool-status">
-                                <span class="status-dot available"></span>
-                                <span class="status-text">Available</span>
-                            </div>
-                        </div>
-                        <p class="tool-description">Get comprehensive information about Flow capabilities and system status</p>
-                        <div class="tool-details">
-                            <div class="tool-params">
-                                <strong>Parameters:</strong> None
-                            </div>
-                            <div class="tool-usage">
-                                <strong>Usage:</strong> Great starting point to understand what Flow can do
-                            </div>
-                        </div>
-                        <div class="tool-actions">
-                            <button class="btn btn-sm btn-secondary" onclick="testTool('what-can-i-do')">Test Tool</button>
-                            <button class="btn btn-sm btn-primary" onclick="showToolExample('what-can-i-do')">Show Example</button>
-                        </div>
-                    </div>
-
-                    <div class="tool-card" data-tool="get-stats">
-                        <div class="tool-header">
-                            <h3>System Statistics</h3>
-                            <div class="tool-status">
-                                <span class="status-dot available"></span>
-                                <span class="status-text">Available</span>
-                            </div>
-                        </div>
-                        <p class="tool-description">Get detailed statistics about OCR data, system performance, and activity metrics</p>
-                        <div class="tool-details">
-                            <div class="tool-params">
-                                <strong>Parameters:</strong> None
-                            </div>
-                            <div class="tool-usage">
-                                <strong>Usage:</strong> Monitor system health and data collection progress
-                            </div>
-                        </div>
-                        <div class="tool-actions">
-                            <button class="btn btn-sm btn-secondary" onclick="testTool('get-stats')">Test Tool</button>
-                            <button class="btn btn-sm btn-primary" onclick="showToolExample('get-stats')">Show Example</button>
-                        </div>
-                    </div>
-
-                    <div class="tool-card" data-tool="activity-graph">
-                        <div class="tool-header">
-                            <h3>Activity Graph</h3>
-                            <div class="tool-status">
-                                <span class="status-dot available"></span>
-                                <span class="status-text">Available</span>
-                            </div>
-                        </div>
-                        <p class="tool-description">Generate activity timeline graphs showing capture patterns over time</p>
-                        <div class="tool-details">
-                            <div class="tool-params">
-                                <strong>Parameters:</strong> days (7), grouping (hourly/daily), include_empty (true)
-                            </div>
-                            <div class="tool-usage">
-                                <strong>Usage:</strong> Visualize work patterns and system activity
-                            </div>
-                        </div>
-                        <div class="tool-actions">
-                            <button class="btn btn-sm btn-secondary" onclick="testTool('activity-graph')">Test Tool</button>
-                            <button class="btn btn-sm btn-primary" onclick="showToolExample('activity-graph')">Show Example</button>
-                        </div>
-                    </div>
-
-                    <div class="tool-card" data-tool="time-range-summary">
-                        <div class="tool-header">
-                            <h3>Time Range Summary</h3>
-                            <div class="tool-status">
-                                <span class="status-dot available"></span>
-                                <span class="status-text">Available</span>
-                            </div>
-                        </div>
-                        <p class="tool-description">Get sampled OCR data over specific time ranges with intelligent sampling</p>
-                        <div class="tool-details">
-                            <div class="tool-params">
-                                <strong>Parameters:</strong> start_time, end_time, max_results (24), include_text (true)
-                            </div>
-                            <div class="tool-usage">
-                                <strong>Usage:</strong> Analyze activity patterns over custom time periods
-                            </div>
-                        </div>
-                        <div class="tool-actions">
-                            <button class="btn btn-sm btn-secondary" onclick="testTool('time-range-summary')">Test Tool</button>
-                            <button class="btn btn-sm btn-primary" onclick="showToolExample('time-range-summary')">Show Example</button>
-                        </div>
-                    </div>
-
-                    <div class="tool-card" data-tool="start-flow">
-                        <div class="tool-header">
-                            <h3>Start Flow System</h3>
-                            <div class="tool-status">
-                                <span class="status-dot available"></span>
-                                <span class="status-text">Available</span>
-                            </div>
-                        </div>
-                        <p class="tool-description">Start the Flow system including ChromaDB server and screen capture process</p>
-                        <div class="tool-details">
-                            <div class="tool-params">
-                                <strong>Parameters:</strong> None
-                            </div>
-                            <div class="tool-usage">
-                                <strong>Usage:</strong> Remote system control via Claude Desktop
-                            </div>
-                        </div>
-                        <div class="tool-actions">
-                            <button class="btn btn-sm btn-secondary" onclick="testTool('start-flow')">Test Tool</button>
-                            <button class="btn btn-sm btn-primary" onclick="showToolExample('start-flow')">Show Example</button>
-                        </div>
-                    </div>
-
-                    <div class="tool-card" data-tool="stop-flow">
-                        <div class="tool-header">
-                            <h3>Stop Flow System</h3>
-                            <div class="tool-status">
-                                <span class="status-dot available"></span>
-                                <span class="status-text">Available</span>
-                            </div>
-                        </div>
-                        <p class="tool-description">Stop the Flow system processes gracefully with proper cleanup</p>
-                        <div class="tool-details">
-                            <div class="tool-params">
-                                <strong>Parameters:</strong> None
-                            </div>
-                            <div class="tool-usage">
-                                <strong>Usage:</strong> Remote system control via Claude Desktop
-                            </div>
-                        </div>
-                        <div class="tool-actions">
-                            <button class="btn btn-sm btn-secondary" onclick="testTool('stop-flow')">Test Tool</button>
-                            <button class="btn btn-sm btn-primary" onclick="showToolExample('stop-flow')">Show Example</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="tools-info">
-                    <div class="info-section">
-                        <h4>Claude Desktop Integration</h4>
-                        <p>To use these tools with Claude Desktop, add this configuration to your Claude Desktop config:</p>
-                        <div class="code-block">
-                            <pre><code>{
-  "mcpServers": {
-    "flow": {
-      "command": "/Users/joe/dev/flow/mcp-server/start.sh"
-    }
-  }
-}</code></pre>
-                            <button class="btn btn-sm btn-secondary" onclick="copyToClipboard(this.previousElementSibling.textContent)">Copy Config</button>
-                        </div>
-                    </div>
-                </div>
-            </section>
         </main>
     </div>
 
