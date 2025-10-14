@@ -25,6 +25,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from dashboard.lib.process_manager import ProcessManager
 from dashboard.lib.data_handler import DataHandler
+from dashboard.lib.chat_manager import ChatManager
 from dashboard.api.ocr_data import router as ocr_router
 
 # Configure logging
@@ -37,15 +38,34 @@ logger = logging.getLogger(__name__)
 # Global instances
 process_manager: Optional[ProcessManager] = None
 data_handler: Optional[DataHandler] = None
+chat_manager: Optional[ChatManager] = None
 
 # WebSocket connections for real-time updates
 websocket_connections: list[WebSocket] = []
 
 
+async def broadcast_to_websockets(message: Dict[str, Any]):
+    """Broadcast message to all connected WebSocket clients."""
+    if not websocket_connections:
+        return
+    
+    disconnected = []
+    for websocket in websocket_connections:
+        try:
+            await websocket.send_json(message)
+        except Exception:
+            disconnected.append(websocket)
+    
+    # Remove disconnected clients
+    for websocket in disconnected:
+        if websocket in websocket_connections:
+            websocket_connections.remove(websocket)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager for startup and shutdown."""
-    global process_manager, data_handler
+    global process_manager, data_handler, chat_manager
     
     # Startup
     logger.info("Starting Flow Dashboard...")
@@ -53,6 +73,15 @@ async def lifespan(app: FastAPI):
     # Initialize components
     process_manager = ProcessManager()
     data_handler = DataHandler()
+    
+    # Initialize chat manager with broadcast callback
+    try:
+        chat_manager = ChatManager(websocket_broadcast_callback=broadcast_to_websockets)
+        logger.info("Chat manager initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize chat manager: {e}")
+        logger.warning("Chat functionality will be disabled")
+        chat_manager = None
     
     # Load initial state
     await process_manager.load_state()
@@ -257,6 +286,30 @@ async def broadcast_log(log_entry: dict):
         logger.error(f"Error broadcasting log: {e}")
 
 
+async def broadcast_countdown(countdown_data: dict):
+    """Broadcast countdown update to all connected WebSocket clients."""
+    if not websocket_connections:
+        return
+        
+    try:
+        message = {"type": "countdown_update", "data": countdown_data}
+        
+        # Send to all connected clients
+        disconnected = []
+        for websocket in websocket_connections:
+            try:
+                await websocket.send_json(message)
+            except Exception:
+                disconnected.append(websocket)
+        
+        # Remove disconnected clients
+        for websocket in disconnected:
+            websocket_connections.remove(websocket)
+            
+    except Exception as e:
+        logger.error(f"Error broadcasting countdown: {e}")
+
+
 async def broadcast_hamster_state_update(state_data: Dict[str, Any]):
     """Broadcast hamster state update to all connected WebSocket clients."""
     if not websocket_connections:
@@ -327,6 +380,17 @@ async def trigger_hamster_event(event_data: Dict[str, Any]):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/broadcast-countdown")
+async def broadcast_countdown_update(countdown_data: Dict[str, Any]):
+    """Receive countdown update from refinery and broadcast to clients."""
+    try:
+        await broadcast_countdown(countdown_data)
+        return {"status": "success"}
+    except Exception as e:
+        logger.error(f"Error broadcasting countdown: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/mcp-status")
 async def get_mcp_status():
     """Get MCP server status and client information."""
@@ -364,6 +428,77 @@ async def get_mcp_status():
         
     except Exception as e:
         logger.error(f"Error getting MCP status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/chat/send")
+async def send_chat_message(request: Request):
+    """Send a chat message."""
+    try:
+        if not chat_manager:
+            raise HTTPException(status_code=503, detail="Chat service not available")
+        
+        data = await request.json()
+        message_id = data.get("message_id")
+        content = data.get("content")
+        
+        if not message_id or not content:
+            raise HTTPException(status_code=400, detail="message_id and content are required")
+        
+        # Add message to queue
+        await chat_manager.add_message(message_id, content)
+        
+        return JSONResponse(content={"status": "queued", "message_id": message_id})
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error sending chat message: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/chat/clear-queue")
+async def clear_chat_queue():
+    """Clear the chat message queue."""
+    try:
+        if not chat_manager:
+            raise HTTPException(status_code=503, detail="Chat service not available")
+        
+        await chat_manager.clear_queue()
+        return JSONResponse(content={"status": "success", "message": "Queue cleared"})
+        
+    except Exception as e:
+        logger.error(f"Error clearing queue: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/chat/clear-conversation")
+async def clear_chat_conversation():
+    """Clear the conversation history."""
+    try:
+        if not chat_manager:
+            raise HTTPException(status_code=503, detail="Chat service not available")
+        
+        await chat_manager.clear_conversation()
+        return JSONResponse(content={"status": "success", "message": "Conversation cleared"})
+        
+    except Exception as e:
+        logger.error(f"Error clearing conversation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/chat/queue-status")
+async def get_chat_queue_status():
+    """Get current queue status."""
+    try:
+        if not chat_manager:
+            raise HTTPException(status_code=503, detail="Chat service not available")
+        
+        status = chat_manager.get_queue_status()
+        return JSONResponse(content=status)
+        
+    except Exception as e:
+        logger.error(f"Error getting queue status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -677,7 +677,7 @@ section h2 {
 
 .screens-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min-content, max-content));
     gap: 24px;
 }
 
@@ -685,6 +685,7 @@ section h2 {
     border: 2px solid var(--gray-200);
     padding: 24px;
     transition: all 0.2s ease;
+    width: fit-content;
 }
 
 .screen-card:hover {
@@ -1234,6 +1235,15 @@ section h2 {
 .chat-message.system .message-content {
     color: var(--gray-600);
     font-style: italic;
+}
+
+.chat-message.tool .message-content {
+    color: #2563EB;
+    background-color: #EFF6FF;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+    font-size: 0.9em;
 }
 
 .message-content strong {

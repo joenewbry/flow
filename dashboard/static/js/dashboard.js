@@ -346,11 +346,40 @@ class FlowDashboard {
                 case 'log_message':
                     this.handleLogMessage(message.data);
                     break;
+                case 'countdown_update':
+                    this.handleCountdownUpdate(message.data);
+                    break;
+                case 'chat_message':
+                case 'tool_status':
+                case 'queue_update':
+                case 'message_status':
+                    // Handle chat-related messages
+                    handleChatWebSocketMessage(message);
+                    break;
                 default:
                     console.log('Unknown WebSocket message type:', message.type);
             }
         } catch (error) {
             console.error('Error handling WebSocket message:', error);
+        }
+    }
+    
+    handleCountdownUpdate(data) {
+        // Update seconds remaining from server
+        if (data.seconds_remaining !== undefined) {
+            this.secondsRemaining = data.seconds_remaining;
+            
+            // Update displays immediately
+            const countdownText = document.getElementById('countdown-text');
+            const statusCountdownText = document.getElementById('status-countdown-text');
+            
+            if (countdownText) {
+                countdownText.textContent = `Next capture in ${data.seconds_remaining}s`;
+            }
+            
+            if (statusCountdownText) {
+                statusCountdownText.textContent = `Next capture in ${data.seconds_remaining} seconds`;
+            }
         }
     }
     
@@ -2416,6 +2445,7 @@ function toggleToolsPanel() {
 
 // Chat Functions
 let chatHistory = [];
+let messageCounter = 0;
 
 async function sendChatMessage() {
     const input = document.getElementById('chat-input');
@@ -2423,111 +2453,86 @@ async function sendChatMessage() {
     
     if (!message) return;
     
-    // Add user message to chat
+    // Generate unique message ID
+    const messageId = `msg_${Date.now()}_${++messageCounter}`;
+    
+    // Add user message to chat immediately
     addChatMessage('user', message);
     chatHistory.push({ role: 'user', content: message });
     
     // Clear input
     input.value = '';
     
-    // Process the message
+    // Send message to backend
     try {
-        const response = await processChatMessage(message);
-        addChatMessage('assistant', response);
-        chatHistory.push({ role: 'assistant', content: response });
+        const response = await fetch('/api/chat/send', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message_id: messageId,
+                content: message
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.detail || 'Failed to send message');
+        }
+        
+        // Show queued status
+        addChatMessage('system', `Message queued (${data.message_id})`);
+        
     } catch (error) {
+        console.error('Error sending chat message:', error);
         addChatMessage('error', `Error: ${error.message}`);
     }
 }
 
-async function processChatMessage(message) {
-    const messageLower = message.toLowerCase();
-    
-    // Simple command parsing
-    if (messageLower.includes('search')) {
-        // Extract search query
-        const query = message.replace(/search/gi, '').trim();
-        if (!query) {
-            return "What would you like to search for?";
+// Handle incoming WebSocket chat messages
+function handleChatWebSocketMessage(data) {
+    if (data.type === 'chat_message') {
+        const msg = data.data;
+        addChatMessage(msg.role, msg.content);
+        chatHistory.push({ role: msg.role, content: msg.content });
+    }
+    else if (data.type === 'tool_status') {
+        const tool = data.data;
+        if (tool.status === 'executing') {
+            addChatMessage('tool', `🔧 Executing tool: ${tool.tool_name}...`);
+        } else if (tool.status === 'completed') {
+            addChatMessage('tool', `✅ Tool ${tool.tool_name} completed`);
         }
-        
-        const response = await fetch(`/api/search?q=${encodeURIComponent(query)}&limit=5`);
-        const data = await response.json();
-        
-        if (data.results && data.results.length > 0) {
-            let result = `Found ${data.total_found} results for "${query}":\n\n`;
-            data.results.forEach((item, idx) => {
-                result += `${idx + 1}. [${new Date(item.timestamp).toLocaleString()}]\n`;
-                result += `   ${item.text_preview.substring(0, 150)}...\n\n`;
-            });
-            return result;
+    }
+    else if (data.type === 'queue_update') {
+        updateQueueDisplay(data.data);
+    }
+    else if (data.type === 'message_status') {
+        const status = data.data;
+        if (status.status === 'error') {
+            addChatMessage('error', `Message failed: ${status.error}`);
+        }
+    }
+}
+
+// Update queue display
+function updateQueueDisplay(queueData) {
+    // Show queue information if there's a queue panel
+    const queuePanel = document.getElementById('chat-queue-panel');
+    if (queuePanel) {
+        if (queueData.queue_size > 0) {
+            queuePanel.style.display = 'block';
+            queuePanel.innerHTML = `
+                <div class="queue-info">
+                    <strong>Queue:</strong> ${queueData.queue_size} message(s) pending
+                </div>
+            `;
         } else {
-            return `No results found for "${query}".`;
+            queuePanel.style.display = 'none';
         }
     }
-    
-    if (messageLower.includes('stats') || messageLower.includes('statistics')) {
-        const response = await fetch('/api/stats');
-        const data = await response.json();
-        
-        return `System Statistics:
-• Total Captures: ${data.total_captures || 0}
-• Unique Screens: ${data.unique_screens || 0}
-• Average Text Length: ${data.avg_text_length || 0} characters
-• Date Range: ${data.date_range ? `${data.date_range.earliest} to ${data.date_range.latest}` : 'No data'}`;
-    }
-    
-    if (messageLower.includes('activity') || messageLower.includes('timeline')) {
-        let hours = 24;
-        if (messageLower.includes('week')) hours = 168;
-        if (messageLower.includes('3 days')) hours = 72;
-        
-        const response = await fetch(`/api/activity-data?hours=${hours}&grouping=hourly`);
-        const data = await response.json();
-        
-        const totalCaptures = data.timeline_data.reduce((sum, item) => sum + item.capture_count, 0);
-        const avgPerHour = (totalCaptures / hours).toFixed(2);
-        
-        return `Activity for last ${hours} hours:
-• Total Captures: ${totalCaptures}
-• Average per hour: ${avgPerHour}
-• Data points: ${data.timeline_data.length}`;
-    }
-    
-    if (messageLower.includes('what can you do') || messageLower.includes('help') || messageLower.includes('tools')) {
-        return `I can help you with:
-
-🔍 **Search** - Search through screenshot text
-   Example: "search meeting notes"
-
-📊 **Statistics** - Get system statistics
-   Example: "get stats" or "show statistics"
-
-📈 **Activity** - Show activity timeline
-   Example: "show activity for last 24 hours"
-
-⚙️ **System** - Get system information
-   Example: "system status"
-
-Try any of these commands or use the quick action buttons below!`;
-    }
-    
-    if (messageLower.includes('system') || messageLower.includes('status')) {
-        const response = await fetch('/api/status');
-        const data = await response.json();
-        
-        return `System Status:
-• Overall: ${data.overall_status}
-• ChromaDB: ${data.chroma_db.running ? 'Running' : 'Stopped'}
-• Screen Capture: ${data.screen_capture.running ? 'Running' : 'Stopped'}`;
-    }
-    
-    // Default response
-    return `I'm not sure how to handle that request. Try:
-- "search [query]" to search screenshots
-- "get stats" for statistics
-- "show activity" for timeline
-- "what can you do?" for help`;
 }
 
 function addChatMessage(type, content) {
@@ -2546,6 +2551,8 @@ function addChatMessage(type, content) {
         contentDiv.innerHTML = `<strong>Assistant:</strong> ${escapeHtml(content).replace(/\n/g, '<br>')}`;
     } else if (type === 'error') {
         contentDiv.innerHTML = `<strong>Error:</strong> ${escapeHtml(content)}`;
+    } else if (type === 'tool') {
+        contentDiv.innerHTML = `<strong>Tool:</strong> ${escapeHtml(content)}`;
     } else {
         contentDiv.innerHTML = `<strong>System:</strong> ${escapeHtml(content)}`;
     }
@@ -2563,18 +2570,34 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-function clearChat() {
-    const messagesDiv = document.getElementById('chat-messages');
-    if (!messagesDiv) return;
-    
-    messagesDiv.innerHTML = `
-        <div class="chat-message system">
-            <div class="message-content">
-                <strong>System:</strong> Chat cleared. How can I help you?
-            </div>
-        </div>
-    `;
-    chatHistory = [];
+async function clearChat() {
+    try {
+        // Clear on backend
+        const response = await fetch('/api/chat/clear-conversation', {
+            method: 'POST'
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to clear conversation');
+        }
+        
+        // Clear locally
+        const messagesDiv = document.getElementById('chat-messages');
+        if (messagesDiv) {
+            messagesDiv.innerHTML = `
+                <div class="chat-message system">
+                    <div class="message-content">
+                        <strong>System:</strong> Conversation cleared. MCP Chat ready. Available tools: search, stats, activity, system. Try asking me anything!
+                    </div>
+                </div>
+            `;
+        }
+        chatHistory = [];
+        
+    } catch (error) {
+        console.error('Error clearing chat:', error);
+        addChatMessage('error', 'Failed to clear conversation');
+    }
 }
 
 function quickChat(message) {
