@@ -179,6 +179,11 @@
             <div class="page-content" id="page-chat" style="display: none;">
                 <h2>MCP CHAT</h2>
                 
+                <!-- Queue Status Panel -->
+                <div id="chat-queue-panel" style="display: none; margin-bottom: 16px; padding: 12px; background: #FEF3C7; border: 2px solid #F59E0B; border-radius: 8px;">
+                    <!-- Populated by JavaScript -->
+                </div>
+                
                 <!-- Chat Interface -->
                 <section class="chat-panel">
                     <h3>Chat Interface</h3>
@@ -187,7 +192,7 @@
                     <div class="chat-messages" id="chat-messages">
                         <div class="chat-message system">
                             <div class="message-content">
-                                <strong>System:</strong> MCP Chat ready. Available tools: search, stats, activity, system. Try "search meeting notes" or see available tools below.
+                                <strong>System:</strong> MCP Chat ready with OpenAI integration. Available tools: search, stats, activity, time-range-summary, system control. Ask me anything!
                             </div>
                         </div>
                     </div>
