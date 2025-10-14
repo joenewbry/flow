@@ -438,11 +438,28 @@ async def main():
     """Main entry point for running the Flow runner."""
     import signal
     
-    # Set up logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+    # Set up logging with file and console handlers
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
+    
+    # Create formatters
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    
+    # File handler
+    file_handler = logging.FileHandler(log_dir / "screen-capture.log")
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(formatter)
+    
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(formatter)
+    
+    # Configure root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(console_handler)
     
     # Handle shutdown signals
     def signal_handler(signum, frame):

@@ -27,12 +27,30 @@ from dashboard.lib.process_manager import ProcessManager
 from dashboard.lib.data_handler import DataHandler
 from dashboard.lib.chat_manager import ChatManager
 from dashboard.api.ocr_data import router as ocr_router
+from dashboard.api.logs import router as logs_router
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Configure logging with file and console handlers
+log_dir = Path(__file__).parent.parent / "logs"
+log_dir.mkdir(exist_ok=True)
+
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+# File handler
+file_handler = logging.FileHandler(log_dir / "dashboard.log")
+file_handler.setLevel(logging.INFO)
+file_handler.setFormatter(formatter)
+
+# Console handler
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+console_handler.setFormatter(formatter)
+
+# Configure root logger
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
+root_logger.addHandler(file_handler)
+root_logger.addHandler(console_handler)
+
 logger = logging.getLogger(__name__)
 
 # Global instances
@@ -113,6 +131,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Include API routers
 app.include_router(ocr_router)
+app.include_router(logs_router)
 
 
 @app.get("/", response_class=HTMLResponse)
