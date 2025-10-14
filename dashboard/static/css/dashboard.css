@@ -365,6 +365,151 @@ section h2 {
     background: var(--pixel-gray);
 }
 
+/* Hamster States Panel */
+.hamster-states-panel {
+    background: var(--pixel-white);
+    border: var(--pixel-border);
+    padding: 16px;
+    margin-bottom: 16px;
+}
+
+.states-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.state-section h3 {
+    color: var(--pixel-black);
+    font-size: 14px;
+    margin-bottom: 12px;
+    text-align: center;
+    border-bottom: var(--pixel-border);
+    padding-bottom: 8px;
+}
+
+.state-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 8px;
+}
+
+.state-card {
+    background: var(--pixel-light-gray);
+    border: var(--pixel-border);
+    padding: 8px;
+    text-align: center;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.state-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--pixel-gray);
+    transition: background 0.3s ease;
+}
+
+.state-card.idle::before {
+    background: var(--pixel-gray);
+}
+
+.state-card.active::before {
+    background: var(--pixel-black);
+    animation: pulse-black 2s infinite;
+}
+
+.state-card.processing::before {
+    background: var(--pixel-black);
+    animation: pulse-black 1s infinite;
+}
+
+.state-card.error::before {
+    background: var(--pixel-black);
+    animation: pulse-black 0.5s infinite;
+}
+
+.state-card.flowing::before {
+    background: var(--pixel-black);
+    animation: pulse-black 1.5s infinite;
+}
+
+@keyframes pulse-black {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+.state-card h4 {
+    color: var(--pixel-black);
+    font-size: 10px;
+    margin: 0 0 4px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.state-card .state-value {
+    color: var(--pixel-black);
+    font-size: 9px;
+    font-family: var(--pixel-font);
+    margin-bottom: 2px;
+}
+
+.state-card .state-time {
+    color: var(--pixel-gray);
+    font-size: 8px;
+    font-family: var(--pixel-font);
+}
+
+.state-legend {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: var(--pixel-border);
+}
+
+.state-legend .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--pixel-black);
+    font-size: 10px;
+}
+
+.state-dot {
+    width: 8px;
+    height: 8px;
+    border: 1px solid var(--pixel-black);
+    display: inline-block;
+}
+
+.state-dot.idle {
+    background: var(--pixel-light-gray);
+}
+
+.state-dot.active {
+    background: var(--pixel-black);
+}
+
+.state-dot.processing {
+    background: var(--pixel-gray);
+}
+
+.state-dot.error {
+    background: var(--pixel-black);
+}
+
+.state-dot.flowing {
+    background: var(--pixel-gray);
+}
+
 /* Activity Section */
 .activity-section {
     background: var(--pixel-white);

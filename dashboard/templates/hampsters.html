@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+    <link rel="stylesheet" href="/static/css/hampsters.css">
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>🐹 HAMSTERS AT WORK 🐹</h1>
+            <div class="header-info">
+                <span class="version">v1.0</span>
+                <div class="status-indicator" id="connection-status">
+                    <span class="status-dot">●</span>
+                    <span class="status-text">ONLINE</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Error Banner (hidden by default) -->
+        <div id="error-banner" class="error-banner hidden">
+            <div class="error-content">
+                <span class="error-icon">⚠️</span>
+                <span id="error-message">System Error</span>
+                <button id="dismiss-error" class="error-dismiss">×</button>
+            </div>
+        </div>
+
+        <!-- Control Panel -->
+        <div class="control-panel">
+            <div class="simulation-controls">
+                <button id="play-pause-btn" class="control-btn">▶️ Play</button>
+                <button id="step-btn" class="control-btn">⏭️ Step</button>
+                <button id="reset-btn" class="control-btn">🔄 Reset</button>
+                <select id="scenario-select" class="control-select">
+                    <option value="SCREEN_CAPTURE_FLOW">Screen Capture Flow</option>
+                    <option value="AUDIO_TRANSCRIPTION_FLOW">Audio Transcription Flow</option>
+                    <option value="MULTI_MONITOR_FLOW">Multi-Monitor Flow</option>
+                    <option value="ERROR_SCENARIOS">Error Testing</option>
+                </select>
+            </div>
+            <div class="speed-control">
+                <label for="speed-slider">Speed:</label>
+                <input type="range" id="speed-slider" min="0.1" max="3" step="0.1" value="1">
+                <span id="speed-display">1.0x</span>
+            </div>
+        </div>
+
+        <!-- Main Visualization Area -->
+        <main class="visualization-area">
+            
+            <!-- Screen Refinery Section -->
+            <section class="refinery-section" id="screen-refinery">
+                <div class="section-border">
+                    <div class="yellow-tape">
+                        <span class="tape-text">🐹 HAMSTERS AT WORK - SCREEN REFINERY 🐹</span>
+                    </div>
+                </div>
+                
+                <div class="refinery-content">
+                    <!-- Screen Recording Canvas -->
+                    <div class="canvas-container">
+                        <canvas id="screen-canvas" class="visualization-canvas"></canvas>
+                        <div class="canvas-overlay">
+                            <div class="canvas-title">Screen Recording Pipeline</div>
+                            <div class="canvas-stats">
+                                <span id="screen-canvas-fps">FPS: 0</span>
+                                <span id="screen-canvas-objects">Objects: 0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Audio Refinery Section -->
+            <section class="refinery-section" id="audio-refinery">
+                <div class="section-border">
+                    <div class="yellow-tape">
+                        <span class="tape-text">🐹 HAMSTERS AT WORK - AUDIO REFINERY 🐹</span>
+                    </div>
+                </div>
+                
+                <div class="refinery-content">
+                    <!-- Audio Recording Canvas -->
+                    <div class="canvas-container">
+                        <canvas id="audio-canvas" class="visualization-canvas"></canvas>
+                        <div class="canvas-overlay">
+                            <div class="canvas-title">Audio Recording Pipeline</div>
+                            <div class="canvas-stats">
+                                <span id="audio-canvas-fps">FPS: 0</span>
+                                <span id="audio-canvas-objects">Objects: 0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Layout Configuration Dashboard -->
+        <div class="config-dashboard" id="config-dashboard">
+            <div class="config-header">
+                <h3>🎛️ Layout Configuration</h3>
+                <button id="toggle-config" class="toggle-btn">▼</button>
+            </div>
+            <div class="config-content">
+                <div class="config-section">
+                    <h4>Screen Configuration</h4>
+                    <div class="config-row">
+                        <label for="screen-count">Number of Screens:</label>
+                        <input type="range" id="screen-count" min="1" max="3" value="1">
+                        <span id="screen-count-display">1</span>
+                    </div>
+                    <div class="config-row">
+                        <label for="layout-template">Layout Template:</label>
+                        <select id="layout-template">
+                            <option value="single">Single Monitor</option>
+                            <option value="dual">Dual Monitor</option>
+                            <option value="triple">Triple Monitor</option>
+                            <option value="custom">Custom Layout</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="config-section">
+                    <h4>State Machine Settings</h4>
+                    <div class="config-row">
+                        <label for="processing-time">OCR Processing Time:</label>
+                        <input type="range" id="processing-time" min="1000" max="10000" step="500" value="3000">
+                        <span id="processing-time-display">3.0s</span>
+                    </div>
+                    <div class="config-row">
+                        <label for="pipe-flow-speed">Pipe Flow Speed:</label>
+                        <input type="range" id="pipe-flow-speed" min="500" max="3000" step="100" value="1500">
+                        <span id="pipe-flow-speed-display">1.5s</span>
+                    </div>
+                </div>
+                
+                <div class="config-section">
+                    <h4>Audio Configuration</h4>
+                    <div class="config-row">
+                        <label for="audio-mode">Audio Processing Mode:</label>
+                        <select id="audio-mode">
+                            <option value="realtime">Real-time (5s chunks)</option>
+                            <option value="balanced">Balanced (15s chunks)</option>
+                            <option value="accurate">High Accuracy (30s chunks)</option>
+                            <option value="batch">Batch Processing (60s chunks)</option>
+                        </select>
+                    </div>
+                    <div class="config-row">
+                        <label for="audio-sensitivity">Audio Sensitivity:</label>
+                        <input type="range" id="audio-sensitivity" min="0.001" max="0.1" step="0.001" value="0.01">
+                        <span id="audio-sensitivity-display">0.01</span>
+                    </div>
+                </div>
+                
+                <div class="config-section">
+                    <h4>Visual Settings</h4>
+                    <div class="config-row">
+                        <label for="block-size">Block Size:</label>
+                        <input type="range" id="block-size" min="16" max="64" step="8" value="32">
+                        <span id="block-size-display">32px</span>
+                    </div>
+                    <div class="config-row">
+                        <label for="animation-quality">Animation Quality:</label>
+                        <select id="animation-quality">
+                            <option value="high">High (60fps)</option>
+                            <option value="medium">Medium (30fps)</option>
+                            <option value="low">Low (15fps)</option>
+                            <option value="minimal">Minimal (no animations)</option>
+                        </select>
+                    </div>
+                    <div class="config-row">
+                        <label>
+                            <input type="checkbox" id="show-grid" checked>
+                            Show Grid Lines
+                        </label>
+                    </div>
+                    <div class="config-row">
+                        <label>
+                            <input type="checkbox" id="reduced-motion">
+                            Reduced Motion
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="config-actions">
+                    <button id="apply-config" class="config-btn primary">Apply Changes</button>
+                    <button id="reset-config" class="config-btn">Reset to Defaults</button>
+                    <button id="export-config" class="config-btn">Export Config</button>
+                    <button id="import-config" class="config-btn">Import Config</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Debug Panel (collapsible) -->
+        <div class="debug-panel collapsed" id="debug-panel">
+            <div class="debug-header">
+                <h3>🔧 Debug Panel</h3>
+                <button id="toggle-debug" class="toggle-btn">▼</button>
+            </div>
+            <div class="debug-content">
+                <div class="debug-section">
+                    <h4>Component States</h4>
+                    <div id="component-states" class="state-list"></div>
+                </div>
+                <div class="debug-section">
+                    <h4>Event Log</h4>
+                    <div id="event-log" class="event-list"></div>
+                </div>
+                <div class="debug-section">
+                    <h4>Performance</h4>
+                    <div id="performance-stats" class="stats-list">
+                        <div>FPS: <span id="fps-counter">60</span></div>
+                        <div>Active Animations: <span id="animation-counter">0</span></div>
+                        <div>Memory Usage: <span id="memory-usage">--</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/static/js/hampsters-state-machine.js"></script>
+    <script src="/static/js/hampsters-simulation.js"></script>
+    <script src="/static/js/hampsters-visualization.js"></script>
+    <script src="/static/js/hampsters-config.js"></script>
+    <script src="/static/js/hampsters-canvas-renderer.js"></script>
+    <script src="/static/js/hampsters-canvas-manager.js"></script>
+    <script src="/static/js/hampsters.js"></script>
+</body>
+</html>

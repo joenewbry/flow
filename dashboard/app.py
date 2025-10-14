@@ -107,6 +107,23 @@ async def dashboard(request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/hampsters", response_class=HTMLResponse)
+async def hampsters_visualization(request: Request):
+    """Hamster visualization page."""
+    try:
+        # Get current system status for real-time integration
+        status = await process_manager.get_status()
+        
+        return templates.TemplateResponse("hampsters.html", {
+            "request": request,
+            "status": status,
+            "title": "Hamsters at Work - Flow Visualization"
+        })
+    except Exception as e:
+        logger.error(f"Error loading hamsters page: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/status")
 async def get_status():
     """Get current system status."""
@@ -214,6 +231,76 @@ async def broadcast_status_update():
             
     except Exception as e:
         logger.error(f"Error broadcasting status update: {e}")
+
+
+async def broadcast_hamster_state_update(state_data: Dict[str, Any]):
+    """Broadcast hamster state update to all connected WebSocket clients."""
+    if not websocket_connections:
+        return
+        
+    try:
+        message = {"type": "hamster_state_update", "data": state_data}
+        
+        # Send to all connected clients
+        disconnected = []
+        for websocket in websocket_connections:
+            try:
+                await websocket.send_json(message)
+            except Exception:
+                disconnected.append(websocket)
+        
+        # Remove disconnected clients
+        for websocket in disconnected:
+            websocket_connections.remove(websocket)
+            
+    except Exception as e:
+        logger.error(f"Error broadcasting hamster state update: {e}")
+
+
+async def broadcast_hamster_event(event_data: Dict[str, Any]):
+    """Broadcast hamster event to all connected WebSocket clients."""
+    if not websocket_connections:
+        return
+        
+    try:
+        message = {"type": "hamster_event", "data": event_data}
+        
+        # Send to all connected clients
+        disconnected = []
+        for websocket in websocket_connections:
+            try:
+                await websocket.send_json(message)
+            except Exception:
+                disconnected.append(websocket)
+        
+        # Remove disconnected clients
+        for websocket in disconnected:
+            websocket_connections.remove(websocket)
+            
+    except Exception as e:
+        logger.error(f"Error broadcasting hamster event: {e}")
+
+
+@app.post("/api/hamster-state-update")
+async def trigger_hamster_state_update(state_data: Dict[str, Any]):
+    """Trigger a hamster state update for testing."""
+    try:
+        await broadcast_hamster_state_update(state_data)
+        return {"status": "success", "message": "Hamster state update broadcasted"}
+    except Exception as e:
+        logger.error(f"Error triggering hamster state update: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/hamster-event")
+async def trigger_hamster_event(event_data: Dict[str, Any]):
+    """Trigger a hamster event for testing."""
+    try:
+        await broadcast_hamster_event(event_data)
+        return {"status": "success", "message": "Hamster event broadcasted"}
+    except Exception as e:
+        logger.error(f"Error triggering hamster event: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/mcp-status")

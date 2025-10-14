@@ -151,9 +151,9 @@ The Flow Dashboard is your central control center for managing and monitoring th
 - **Error Recovery**: Automatic error handling and system recovery
 - **Configuration Persistence**: Settings saved across sessions
 
-## 🤖 Claude Desktop Integration
+## 🤖 Claude Desktop Integration & Team Collaboration
 
-Flow integrates seamlessly with Claude Desktop through a powerful Python MCP server.
+Flow integrates seamlessly with Claude Desktop through a powerful Python MCP server. With ngrok support, you can enable team collaboration by querying multiple team members' Flow instances simultaneously.
 
 ### MCP Server Setup
 
@@ -255,6 +255,11 @@ Example: "Stop the Flow system"
 **System control:**
 > "Start Flow monitoring and show me when it's ready"
 
+**Team collaboration (with multi-instance setup):**
+> "Has John finished the UI designs for XYZ? Search his Flow for figma mentions."
+> "What was Jill working on yesterday afternoon between 2pm and 5pm?"
+> "Search both John's and my Flow for discussions about the API redesign."
+
 ## 🏗️ Architecture
 
 ### System Components
@@ -318,6 +323,88 @@ flow/
 │   └── data/                # Captured data storage
 └── README.md                # This file
 ```
+
+## 🌐 Team Collaboration with Ngrok
+
+Flow supports team collaboration by exposing your MCP server via ngrok, allowing team members to query each other's screen history remotely.
+
+### Why Use This?
+
+- **Cross-team queries**: Ask "Has John finished the UI designs?" by searching his Flow instance
+- **Remote access**: Access your own Flow data from anywhere
+- **Team coordination**: Check what teammates are working on without interrupting them
+- **Knowledge sharing**: Create and share searchable pages with findings
+
+### Quick Setup
+
+1. **Install ngrok**:
+```bash
+brew install ngrok/ngrok/ngrok
+ngrok config add-authtoken YOUR_AUTH_TOKEN
+```
+
+2. **Start HTTP MCP Server**:
+```bash
+cd mcp-server
+python http_server.py --port 8082
+```
+
+3. **Expose via ngrok**:
+```bash
+ngrok http 8082
+# Save the https URL provided
+```
+
+4. **Configure Claude Desktop for Multiple Instances**:
+
+Edit your Claude Desktop config to connect to multiple team members:
+
+```json
+{
+  "mcpServers": {
+    "flow-team": {
+      "command": "python",
+      "args": ["/Users/joe/dev/flow/mcp-server/multi_instance_client.py"],
+      "cwd": "/Users/joe/dev/flow/mcp-server",
+      "env": {
+        "FLOW_INSTANCES": "joe:local,john:https://john-abc.ngrok.io,jill:https://jill-def.ngrok.io"
+      }
+    }
+  }
+}
+```
+
+### Multi-Instance Usage
+
+With the multi-instance setup, tools are automatically prefixed with usernames:
+
+```
+# Search John's Flow
+"Use john-search-screenshots to find mobile app designs"
+
+# Check Jill's activity
+"Use jill-activity-graph to see what she worked on this week"
+
+# Search your own Flow
+"Use joe-search-screenshots to find that email I saw yesterday"
+```
+
+### Security
+
+For production use, enable authentication:
+
+```bash
+# Basic auth
+ngrok http 8082 --basic-auth="username:password"
+
+# OAuth with Google
+ngrok http 8082 --oauth=google --oauth-allow-domain="yourcompany.com"
+
+# IP restrictions
+ngrok http 8082 --cidr-allow="192.168.1.0/24"
+```
+
+**📖 Full Documentation**: See `workspace/ngrok-for-mcp-server.md` for complete setup instructions, security considerations, and advanced configurations.
 
 ## 🔧 Configuration
 
@@ -475,19 +562,65 @@ cp -r refinery/chroma/ backup/chroma-$(date +%Y%m%d)/
 - **Monthly**: Review and clean old logs
 - **Quarterly**: Update dependencies and restart system
 
+## 📄 Sharable Webpages
+
+Flow includes a website builder tool that lets you create shareable webpages from your search results and findings. Perfect for team updates, project documentation, or sharing specific discoveries.
+
+### Features
+
+- **Markdown Support**: Full markdown with code highlighting, tables, images, videos
+- **Search Integration**: Embed Flow search results directly in pages
+- **Local or Public**: Serve pages locally or share via ngrok
+- **Custom Styling**: Modern, responsive design with dark/light themes
+- **Easy Sharing**: Generate unique URLs for each page
+
+### Quick Start
+
+1. **Create a page** via Claude Desktop:
+```
+"Create a webpage called 'ui-progress' with title 'UI Design Progress' 
+containing my search results for 'figma mobile designs' from this week"
+```
+
+2. **Access locally**:
+```
+http://localhost:8084/page/ui-progress
+```
+
+3. **Share publicly** (optional):
+```bash
+cd website-builder
+python server.py --port 8084
+# In another terminal:
+ngrok http 8084
+```
+
+Your page is now accessible at: `https://your-ngrok-url.ngrok.io/page/ui-progress`
+
+### Use Cases
+
+- **Team Updates**: Weekly standup summaries with screenshots
+- **Documentation**: Step-by-step guides with embedded images
+- **Project Tracking**: Progress reports with activity graphs  
+- **Knowledge Sharing**: Tutorials and findings with code examples
+
+**📖 Full Documentation**: See `workspace/website-builder-tool.md` for implementation details and advanced features.
+
 ## 🎯 Roadmap
 
 ### Planned Features
 - [ ] Audio recording with speech-to-text integration
-- [ ] Sharable pages with markdown export (flow.digitalsurface.com)
+- [x] Sharable pages with markdown export
+- [x] Team collaboration via ngrok
 - [ ] Standup update automation tool
 - [ ] Mobile app for remote monitoring
 - [ ] Advanced analytics and insights
-- [ ] Team collaboration features
 - [ ] API for third-party integrations
 
 ### Recent Updates
 - ✅ Complete Python MCP server migration
+- ✅ Team collaboration with ngrok and multi-instance support
+- ✅ Sharable webpage builder for search results
 - ✅ Modern web dashboard with real-time monitoring
 - ✅ Advanced configuration system with themes
 - ✅ Comprehensive error handling and recovery

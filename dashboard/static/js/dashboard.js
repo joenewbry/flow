@@ -48,6 +48,9 @@ class FlowDashboard {
         // Initialize activity chart
         await this.initializeActivityChart();
         
+        // Initialize hamster states
+        this.initializeHamsterStates();
+        
         // Connect WebSocket for real-time updates
         this.connectWebSocket();
         
@@ -320,6 +323,12 @@ class FlowDashboard {
                 case 'status_update':
                     this.updateStatusDisplay(message.data);
                     break;
+                case 'hamster_state_update':
+                    this.updateHamsterStates(message.data);
+                    break;
+                case 'hamster_event':
+                    this.handleHamsterEvent(message.data);
+                    break;
                 default:
                     console.log('Unknown WebSocket message type:', message.type);
             }
@@ -438,6 +447,157 @@ class FlowDashboard {
         } else if (dateRange) {
             dateRange.textContent = 'No data';
         }
+    }
+    
+    // Hamster States Management
+    initializeHamsterStates() {
+        this.hamsterStates = {
+            screen: {
+                hamsters: {},
+                monitors: {},
+                pipes: {},
+                cubes: {},
+                chroma: {}
+            },
+            audio: {
+                hamsters: {},
+                pipes: {},
+                cubes: {},
+                chroma: {}
+            }
+        };
+        
+        this.createStateCards();
+    }
+    
+    createStateCards() {
+        const screenStatesContainer = document.getElementById('screen-states');
+        const audioStatesContainer = document.getElementById('audio-states');
+        
+        if (!screenStatesContainer || !audioStatesContainer) return;
+        
+        // Screen Refinery States
+        const screenComponents = [
+            { id: 'hamster-1', name: 'HAMSTER 1', type: 'hamster' },
+            { id: 'hamster-2', name: 'HAMSTER 2', type: 'hamster' },
+            { id: 'hamster-3', name: 'HAMSTER 3', type: 'hamster' },
+            { id: 'monitor-1', name: 'MONITOR 1', type: 'monitor' },
+            { id: 'monitor-2', name: 'MONITOR 2', type: 'monitor' },
+            { id: 'monitor-3', name: 'MONITOR 3', type: 'monitor' },
+            { id: 'pipe-to-ocr', name: 'PIPE TO OCR', type: 'pipe' },
+            { id: 'pipe-from-ocr', name: 'PIPE FROM OCR', type: 'pipe' },
+            { id: 'ocr-cube', name: 'OCR CUBE', type: 'cube' },
+            { id: 'chroma-screen', name: 'CHROMA SCREEN', type: 'chroma' }
+        ];
+        
+        // Audio Refinery States
+        const audioComponents = [
+            { id: 'audio-hamster', name: 'AUDIO HAMSTER', type: 'hamster' },
+            { id: 'audio-pipe-1', name: 'AUDIO PIPE 1', type: 'pipe' },
+            { id: 'audio-pipe-2', name: 'AUDIO PIPE 2', type: 'pipe' },
+            { id: 'audio-cube', name: 'AUDIO CUBE', type: 'cube' },
+            { id: 'chroma-audio', name: 'CHROMA AUDIO', type: 'chroma' }
+        ];
+        
+        // Create screen state cards
+        screenComponents.forEach(component => {
+            const card = this.createStateCard(component);
+            screenStatesContainer.appendChild(card);
+        });
+        
+        // Create audio state cards
+        audioComponents.forEach(component => {
+            const card = this.createStateCard(component);
+            audioStatesContainer.appendChild(card);
+        });
+    }
+    
+    createStateCard(component) {
+        const card = document.createElement('div');
+        card.className = 'state-card idle';
+        card.id = `state-${component.id}`;
+        
+        card.innerHTML = `
+            <h4>${component.name}</h4>
+            <div class="state-value">IDLE</div>
+            <div class="state-time">--:--</div>
+        `;
+        
+        return card;
+    }
+    
+    updateHamsterStates(stateData) {
+        if (!stateData || !stateData.components) return;
+        
+        Object.entries(stateData.components).forEach(([componentId, state]) => {
+            this.updateComponentState(componentId, state);
+        });
+    }
+    
+    updateComponentState(componentId, state) {
+        const card = document.getElementById(`state-${componentId}`);
+        if (!card) return;
+        
+        // Update card classes
+        card.className = `state-card ${state.status || 'idle'}`;
+        
+        // Update state value
+        const stateValue = card.querySelector('.state-value');
+        if (stateValue) {
+            stateValue.textContent = state.status?.toUpperCase() || 'IDLE';
+        }
+        
+        // Update timestamp
+        const stateTime = card.querySelector('.state-time');
+        if (stateTime) {
+            const now = new Date();
+            stateTime.textContent = now.toLocaleTimeString();
+        }
+        
+        // Store state in memory
+        if (componentId.includes('audio')) {
+            this.hamsterStates.audio[componentId] = state;
+        } else {
+            this.hamsterStates.screen[componentId] = state;
+        }
+    }
+    
+    handleHamsterEvent(eventData) {
+        if (!eventData) return;
+        
+        const { componentId, action, newState, timestamp } = eventData;
+        
+        // Update the component state
+        this.updateComponentState(componentId, {
+            status: newState,
+            lastAction: action,
+            timestamp: timestamp
+        });
+        
+        // Show notification for important events
+        if (this.showNotifications && this.isImportantEvent(action)) {
+            this.showToast(`${componentId}: ${action}`, 'info');
+        }
+        
+        // Log the event
+        console.log(`[Hamster Event] ${componentId}: ${action} -> ${newState}`);
+    }
+    
+    isImportantEvent(action) {
+        const importantActions = [
+            'START_RUN',
+            'TAKE_SCREENSHOT',
+            'START_PROCESSING',
+            'START_FLOW',
+            'ERROR_OCCURRED',
+            'COMPLETED'
+        ];
+        return importantActions.includes(action);
+    }
+    
+    // Get current hamster states for debugging
+    getHamsterStates() {
+        return this.hamsterStates;
     }
     
     async initializeActivityChart() {
