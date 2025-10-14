@@ -2423,6 +2423,11 @@ function switchPage(pageName) {
         }
     });
     
+    // Load logs when logs page is opened
+    if (pageName === 'logs') {
+        refreshAllLogs();
+    }
+    
     // Store current page in localStorage
     localStorage.setItem('currentPage', pageName);
 }
@@ -2610,11 +2615,73 @@ function quickChat(message) {
 
 // Log Functions
 async function refreshAllLogs() {
-    // Placeholder - would fetch real logs from server
     console.log('Refreshing all logs...');
     const dashboard = window.flowDashboard;
-    if (dashboard) {
-        dashboard.showToast('Logs refreshed', 'success');
+    
+    try {
+        const subsystems = ['screen-capture', 'dashboard', 'mcp-server', 'chromadb'];
+        
+        for (const subsystem of subsystems) {
+            await loadLogsForSubsystem(subsystem);
+        }
+        
+        if (dashboard) {
+            dashboard.showToast('Logs refreshed', 'success');
+        }
+    } catch (error) {
+        console.error('Error refreshing logs:', error);
+        if (dashboard) {
+            dashboard.showToast('Failed to refresh logs', 'error');
+        }
+    }
+}
+
+async function loadLogsForSubsystem(subsystem) {
+    try {
+        const response = await fetch(`/api/logs/${subsystem}?max_lines=100`);
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(`Failed to load ${subsystem} logs`);
+        }
+        
+        // Map subsystem names to log content IDs
+        const contentMap = {
+            'screen-capture': 'screen-logs',
+            'dashboard': 'dashboard-logs',
+            'mcp-server': 'mcp-logs',
+            'chromadb': 'chroma-logs'
+        };
+        
+        const contentId = contentMap[subsystem];
+        if (!contentId) return;
+        
+        const logContent = document.getElementById(contentId);
+        if (!logContent) return;
+        
+        // Clear existing logs
+        logContent.innerHTML = '';
+        
+        if (data.logs && data.logs.length > 0) {
+            // Add log entries
+            data.logs.forEach(log => {
+                const logEntry = document.createElement('div');
+                logEntry.className = `log-entry log-${log.level.toLowerCase()}`;
+                
+                logEntry.innerHTML = `
+                    <span class="log-time">${log.timestamp || new Date().toLocaleTimeString()}</span>
+                    <span class="log-level">${log.level}</span>
+                    <span class="log-message">${escapeHtml(log.message)}</span>
+                `;
+                
+                logContent.appendChild(logEntry);
+            });
+        } else {
+            logContent.innerHTML = '<div class="log-empty">No logs available</div>';
+        }
+        
+    } catch (error) {
+        console.error(`Error loading logs for ${subsystem}:`, error);
     }
 }
 

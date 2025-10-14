@@ -37,15 +37,32 @@ from tools.stats import StatsTool
 from tools.activity import ActivityTool
 from tools.system import SystemTool
 from tools.website import WebsiteTool
+from tools.sampling import SamplingTool
+from tools.vector_search import VectorSearchTool
+from tools.recent_search import RecentSearchTool
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stderr)
-    ]
-)
+# Configure logging with file and console handlers
+log_dir = Path(__file__).parent.parent / "logs"
+log_dir.mkdir(exist_ok=True)
+
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+# File handler
+file_handler = logging.FileHandler(log_dir / "mcp-server.log")
+file_handler.setLevel(logging.INFO)
+file_handler.setFormatter(formatter)
+
+# Console handler (stderr for MCP)
+console_handler = logging.StreamHandler(sys.stderr)
+console_handler.setLevel(logging.INFO)
+console_handler.setFormatter(formatter)
+
+# Configure root logger
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
+root_logger.addHandler(file_handler)
+root_logger.addHandler(console_handler)
+
 logger = logging.getLogger(__name__)
 
 
@@ -62,6 +79,9 @@ class FlowMCPServer:
         self.activity_tool = ActivityTool(self.workspace_root)
         self.system_tool = SystemTool(self.workspace_root)
         self.website_tool = WebsiteTool(self.workspace_root)
+        self.sampling_tool = SamplingTool(self.workspace_root)
+        self.vector_search_tool = VectorSearchTool(self.workspace_root)
+        self.recent_search_tool = RecentSearchTool(self.workspace_root)
         
         # Register tools
         self.tools = {
@@ -76,6 +96,9 @@ class FlowMCPServer:
             "list-webpages": self.website_tool,
             "delete-webpage": self.website_tool,
             "get-webpage-url": self.website_tool,
+            "sample-time-range": self.sampling_tool,
+            "vector-search-windowed": self.vector_search_tool,
+            "search-recent-relevant": self.recent_search_tool,
         }
         
         logger.info(f"Initialized Flow MCP Server with {len(self.tools)} tools")
@@ -360,6 +383,31 @@ class FlowMCPServer:
                 return await tool.get_page_url(
                     page_name=arguments["page_name"],
                     ngrok_url=arguments.get("ngrok_url")
+                )
+            elif name == "sample-time-range":
+                return await tool.sample_time_range(
+                    start_time=arguments["start_time"],
+                    end_time=arguments["end_time"],
+                    max_samples=arguments.get("max_samples", 24),
+                    min_window_minutes=arguments.get("min_window_minutes", 15),
+                    include_text=arguments.get("include_text", True)
+                )
+            elif name == "vector-search-windowed":
+                return await tool.vector_search_windowed(
+                    query=arguments["query"],
+                    start_time=arguments["start_time"],
+                    end_time=arguments["end_time"],
+                    max_results=arguments.get("max_results", 20),
+                    min_relevance=arguments.get("min_relevance", 0.5)
+                )
+            elif name == "search-recent-relevant":
+                return await tool.search_recent_relevant(
+                    query=arguments["query"],
+                    max_results=arguments.get("max_results", 10),
+                    initial_days=arguments.get("initial_days", 7),
+                    max_days=arguments.get("max_days", 90),
+                    recency_weight=arguments.get("recency_weight", 0.5),
+                    min_score=arguments.get("min_score", 0.6)
                 )
             else:
                 raise ValueError(f"Tool {name} not implemented")
