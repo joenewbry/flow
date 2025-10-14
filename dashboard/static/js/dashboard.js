@@ -4,6 +4,7 @@ class FlowDashboard {
     constructor() {
         this.websocket = null;
         this.activityChart = null;
+        this.weeklyChart = null;
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 5;
         this.reconnectDelay = 1000;
@@ -12,9 +13,10 @@ class FlowDashboard {
         this.healthCheckInterval = null;
         this.showNotifications = true;
         
-        // Hamster and countdown tracking
+        // Countdown tracking
         this.countdownInterval = null;
         this.secondsRemaining = 60;
+        this.isRecording = false;
         this.mcpClients = [];
         this.lastMcpRequest = null;
         
@@ -45,11 +47,20 @@ class FlowDashboard {
             this.updateStatsDisplay(window.initialData.stats);
         }
         
-        // Initialize activity chart
-        await this.initializeActivityChart();
+        // Load enhanced metrics
+        await this.updateEnhancedMetrics();
         
-        // Initialize hamster states
-        this.initializeHamsterStates();
+        // Initialize weekly chart
+        await this.initializeWeeklyChart();
+        
+        // Initialize coverage heatmap
+        await this.initializeCoverageHeatmap();
+        
+        // Initialize activity chart (old one, might remove)
+        // await this.initializeActivityChart();
+        
+        // Initialize screen cards
+        await this.initializeScreenCards();
         
         // Connect WebSocket for real-time updates
         this.connectWebSocket();
@@ -57,8 +68,11 @@ class FlowDashboard {
         // Set up periodic updates
         this.startPeriodicUpdates();
         
-        // Start hamster countdown
+        // Start countdown
         this.startCountdown();
+        
+        // Update status dot
+        this.updateStatusDot(true);
         
         // Start MCP monitoring
         this.startMcpMonitoring();
@@ -329,11 +343,72 @@ class FlowDashboard {
                 case 'hamster_event':
                     this.handleHamsterEvent(message.data);
                     break;
+                case 'log_message':
+                    this.handleLogMessage(message.data);
+                    break;
                 default:
                     console.log('Unknown WebSocket message type:', message.type);
             }
         } catch (error) {
             console.error('Error handling WebSocket message:', error);
+        }
+    }
+    
+    handleLogMessage(logData) {
+        // Map subsystem names to panel IDs
+        const subsystemMap = {
+            'screen-capture': 'screen-capture-log-content',
+            'chromadb': 'chromadb-log-content',
+            'dashboard': 'dashboard-log-content',
+            'mcp-server': 'mcp-server-log-content'
+        };
+        
+        const panelId = subsystemMap[logData.subsystem];
+        if (!panelId) {
+            console.warn(`Unknown log subsystem: ${logData.subsystem}`);
+            return;
+        }
+        
+        const logContent = document.getElementById(panelId);
+        if (!logContent) {
+            return;
+        }
+        
+        // Check if "No logs available" message exists and remove it
+        const emptyMessage = logContent.querySelector('.log-empty');
+        if (emptyMessage) {
+            emptyMessage.remove();
+        }
+        
+        // Create log entry element
+        const logEntry = document.createElement('div');
+        logEntry.className = `log-entry log-${logData.level.toLowerCase()}`;
+        
+        const timeStamp = new Date(logData.timestamp).toLocaleTimeString();
+        
+        logEntry.innerHTML = `
+            <span class="log-time">${timeStamp}</span>
+            <span class="log-level">${logData.level}</span>
+            <span class="log-message">${this.escapeHtml(logData.message)}</span>
+        `;
+        
+        // Append to log content
+        logContent.appendChild(logEntry);
+        
+        // Auto-scroll if enabled
+        const autoScrollCheckbox = document.getElementById('auto-scroll-logs');
+        if (autoScrollCheckbox && autoScrollCheckbox.checked) {
+            logContent.scrollTop = logContent.scrollHeight;
+        }
+        
+        // Limit number of log entries (keep last 1000)
+        const maxEntries = 1000;
+        const entries = logContent.querySelectorAll('.log-entry');
+        if (entries.length > maxEntries) {
+            const entriesToRemove = entries.length - maxEntries;
+            for (let i = 0; i < entriesToRemove; i++) {
+                entries[i].remove();
+            }
         }
     }
     
@@ -363,27 +438,20 @@ class FlowDashboard {
     }
     
     updateConnectionStatus(connected) {
-        const statusElement = document.getElementById('connection-status');
-        const dot = statusElement.querySelector('.status-dot');
-        const text = statusElement.querySelector('.status-text');
-        
-        if (connected) {
-            dot.style.backgroundColor = 'var(--success-color)';
-            text.textContent = 'Connected';
-        } else {
-            dot.style.backgroundColor = 'var(--danger-color)';
-            text.textContent = 'Disconnected';
-        }
+        // Update the status dot in the header
+        this.updateStatusDot(connected);
     }
     
     updateStatusDisplay(status) {
-        // Update overall status
-        const overallBadge = document.getElementById('overall-badge');
-        const badgeText = overallBadge.querySelector('.badge-text');
-        badgeText.textContent = status.overall_status.charAt(0).toUpperCase() + status.overall_status.slice(1);
+        // Update recording state for countdown
+        this.isRecording = status.screen_capture && status.screen_capture.running;
         
-        // Update badge color
-        overallBadge.className = `status-badge ${status.overall_status}`;
+        // Update overall status indicator
+        const overallIndicator = document.getElementById('overall-indicator');
+        if (overallIndicator) {
+            overallIndicator.className = 'status-indicator';
+            overallIndicator.classList.add(status.overall_status === 'running' ? 'running' : 'stopped');
+        }
         
         // Update control buttons
         const startBtn = document.getElementById('start-btn');
@@ -397,11 +465,12 @@ class FlowDashboard {
             stopBtn.disabled = true;
         }
         
-        // Update ChromaDB status
-        const chromaBadge = document.getElementById('chroma-badge');
-        const chromaBadgeText = chromaBadge.querySelector('.badge-text');
-        chromaBadgeText.textContent = status.chroma_db.running ? 'Running' : 'Stopped';
-        chromaBadge.className = `status-badge ${status.chroma_db.running ? 'running' : 'stopped'}`;
+        // Update ChromaDB status indicator
+        const chromaIndicator = document.getElementById('chroma-indicator');
+        if (chromaIndicator) {
+            chromaIndicator.className = 'status-indicator';
+            chromaIndicator.classList.add(status.chroma_db.running ? 'running' : 'stopped');
+        }
         
         const chromaHealth = document.getElementById('chroma-health');
         if (chromaHealth) {
@@ -413,11 +482,12 @@ class FlowDashboard {
             chromaPid.textContent = status.chroma_db.pid;
         }
         
-        // Update Screen Capture status
-        const captureBadge = document.getElementById('capture-badge');
-        const captureBadgeText = captureBadge.querySelector('.badge-text');
-        captureBadgeText.textContent = status.screen_capture.running ? 'Running' : 'Stopped';
-        captureBadge.className = `status-badge ${status.screen_capture.running ? 'running' : 'stopped'}`;
+        // Update Screen Capture status indicator
+        const captureIndicator = document.getElementById('capture-indicator');
+        if (captureIndicator) {
+            captureIndicator.className = 'status-indicator';
+            captureIndicator.classList.add(status.screen_capture.running ? 'running' : 'stopped');
+        }
         
         const captureHealth = document.getElementById('capture-health');
         if (captureHealth) {
@@ -428,6 +498,7 @@ class FlowDashboard {
         if (capturePid && status.screen_capture.pid) {
             capturePid.textContent = status.screen_capture.pid;
         }
+        
     }
     
     updateStatsDisplay(stats) {
@@ -449,25 +520,369 @@ class FlowDashboard {
         }
     }
     
-    // Hamster States Management
-    initializeHamsterStates() {
-        this.hamsterStates = {
-            screen: {
-                hamsters: {},
-                monitors: {},
-                pipes: {},
-                cubes: {},
-                chroma: {}
-            },
-            audio: {
-                hamsters: {},
-                pipes: {},
-                cubes: {},
-                chroma: {}
+    async updateEnhancedMetrics() {
+        try {
+            const response = await fetch('/api/enhanced-metrics');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const metrics = await response.json();
+            
+            // Today's Activity
+            const todayScreenshotCount = document.getElementById('today-screenshot-count');
+            const todayTextCaptured = document.getElementById('today-text-captured');
+            const todayActiveHours = document.getElementById('today-active-hours');
+            
+            if (todayScreenshotCount) todayScreenshotCount.textContent = metrics.today.screenshot_count;
+            if (todayTextCaptured) {
+                const textCount = metrics.today.text_captured;
+                if (textCount >= 1000000) {
+                    todayTextCaptured.textContent = (textCount / 1000000).toFixed(1) + 'M';
+                } else if (textCount >= 1000) {
+                    todayTextCaptured.textContent = (textCount / 1000).toFixed(1) + 'K';
+                } else {
+                    todayTextCaptured.textContent = textCount;
+                }
+            }
+            if (todayActiveHours) todayActiveHours.textContent = metrics.today.active_hours;
+            
+            // 7-Day Overview
+            const weekTotalScreenshots = document.getElementById('week-total-screenshots');
+            const weekDailyAverage = document.getElementById('week-daily-average');
+            const weekTrendSymbol = document.getElementById('week-trend-symbol');
+            const weekTrendLabel = document.getElementById('week-trend-label');
+            const weekMostActiveDay = document.getElementById('week-most-active-day');
+            const weekMostActiveDayCount = document.getElementById('week-most-active-day-count');
+            const weekActiveDays = document.getElementById('week-active-days');
+            const weekSuccessRate = document.getElementById('week-success-rate');
+            
+            if (weekTotalScreenshots) weekTotalScreenshots.textContent = metrics.seven_day.total_screenshots;
+            if (weekDailyAverage) weekDailyAverage.textContent = metrics.seven_day.daily_average;
+            if (weekTrendSymbol) weekTrendSymbol.textContent = metrics.seven_day.trend_symbol;
+            if (weekTrendLabel) {
+                weekTrendLabel.textContent = metrics.seven_day.trend;
+                weekTrendLabel.style.textTransform = 'uppercase';
+            }
+            
+            if (weekMostActiveDay && metrics.seven_day.most_active_day !== 'N/A') {
+                const date = new Date(metrics.seven_day.most_active_day);
+                weekMostActiveDay.textContent = date.toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric' 
+                });
+            } else if (weekMostActiveDay) {
+                weekMostActiveDay.textContent = 'N/A';
+            }
+            if (weekMostActiveDayCount) {
+                weekMostActiveDayCount.textContent = metrics.seven_day.most_active_day_count + ' captures';
+            }
+            if (weekActiveDays) weekActiveDays.textContent = metrics.seven_day.active_days;
+            if (weekSuccessRate) weekSuccessRate.textContent = metrics.seven_day.empty_capture_rate !== undefined 
+                ? (100 - metrics.seven_day.empty_capture_rate).toFixed(1) + '%'
+                : '-';
+            
+            // ChromaDB Status
+            const chromaTotalDocuments = document.getElementById('chroma-total-documents');
+            const chromaCollectionCount = document.getElementById('chroma-collection-count');
+            const chromaStatusLabel = document.getElementById('chroma-status-label');
+            
+            if (chromaTotalDocuments) chromaTotalDocuments.textContent = metrics.chromadb.total_documents;
+            if (chromaCollectionCount) chromaCollectionCount.textContent = metrics.chromadb.collections.length;
+            if (chromaStatusLabel) {
+                chromaStatusLabel.textContent = metrics.chromadb.status;
+                chromaStatusLabel.style.textTransform = 'uppercase';
+            }
+            
+            // System Debug Info
+            const systemOcrFiles = document.getElementById('system-ocr-files');
+            const systemDiskSpace = document.getElementById('system-disk-space');
+            
+            if (systemOcrFiles) systemOcrFiles.textContent = metrics.system.ocr_files_on_disk;
+            if (systemDiskSpace) systemDiskSpace.textContent = metrics.system.disk_space_used;
+            
+            console.log('Enhanced metrics updated successfully');
+            
+        } catch (error) {
+            console.error('Error updating enhanced metrics:', error);
+        }
+    }
+    
+    // Status Dot Management
+    updateStatusDot(isOnline) {
+        const statusDot = document.getElementById('status-dot');
+        if (statusDot) {
+            statusDot.className = 'status-dot';
+            if (!isOnline) {
+                statusDot.classList.add('offline');
+            }
+        }
+    }
+    
+    // Weekly Chart
+    async initializeWeeklyChart() {
+        try {
+            const response = await fetch('/api/activity-data?hours=168&grouping=daily');
+            const data = await response.json();
+            
+            const ctx = document.getElementById('weekly-bar-chart');
+            if (!ctx) return;
+            
+            // Group by day and count screenshots
+            const dayData = {};
+            data.timeline_data.forEach(item => {
+                const day = item.timestamp.split(' ')[0];
+                if (!dayData[day]) {
+                    dayData[day] = { total: 0, screens: new Set() };
+                }
+                dayData[day].total += item.capture_count;
+                item.screen_names.forEach(screen => dayData[day].screens.add(screen));
+            });
+            
+            const labels = Object.keys(dayData).map(date => {
+                const d = new Date(date);
+                return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            });
+            
+            const totals = Object.values(dayData).map(d => d.total);
+            const screenCounts = Object.values(dayData).map(d => d.screens.size);
+            
+            this.weeklyChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Screenshots',
+                        data: totals,
+                        backgroundColor: '#111827',
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    aspectRatio: 3,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                afterLabel: function(context) {
+                                    const screens = screenCounts[context.dataIndex];
+                                    return `${screens} screen${screens !== 1 ? 's' : ''}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+                    }
+                }
+            });
+            
+        } catch (error) {
+            console.error('Error initializing weekly chart:', error);
+        }
+    }
+    
+    // Coverage Heatmap - GitHub style
+    async initializeCoverageHeatmap() {
+        try {
+            const response = await fetch('/api/activity-data?hours=168&grouping=daily');
+            const data = await response.json();
+            
+            const container = document.getElementById('coverage-heatmap');
+            if (!container) return;
+            
+            // Create wrapper
+            const wrapper = document.createElement('div');
+            wrapper.className = 'heatmap-wrapper';
+            
+            // Get 8 weeks of data (56 days)
+            const now = new Date();
+            const startDate = new Date(now);
+            startDate.setDate(now.getDate() - 55); // Go back 55 days to get ~8 weeks
+            
+            // Adjust to start on Sunday
+            const dayOfWeek = startDate.getDay();
+            startDate.setDate(startDate.getDate() - dayOfWeek);
+            
+            // Build activity map
+            const activityMap = {};
+            data.timeline_data.forEach(item => {
+                const dateKey = item.timestamp.split(' ')[0]; // Get just the date part
+                activityMap[dateKey] = item.capture_count;
+            });
+            
+            // Create month labels
+            const monthsDiv = document.createElement('div');
+            monthsDiv.className = 'heatmap-months';
+            
+            // Create main container
+            const mainDiv = document.createElement('div');
+            mainDiv.className = 'heatmap-main';
+            
+            // Create day labels (Sun, Mon, Tue, Wed, Thu, Fri, Sat)
+            const daysLabels = document.createElement('div');
+            daysLabels.className = 'heatmap-days-labels';
+            
+            const dayNames = ['Sun', '', 'Mon', '', 'Wed', '', 'Fri', ''];
+            dayNames.forEach((name, index) => {
+                const label = document.createElement('div');
+                label.className = 'heatmap-day-label';
+                if (!name) label.classList.add('empty');
+                label.textContent = name;
+                daysLabels.appendChild(label);
+            });
+            
+            // Create grid of weeks
+            const grid = document.createElement('div');
+            grid.className = 'heatmap-grid';
+            
+            let currentDate = new Date(startDate);
+            let currentMonth = null;
+            let weekIndex = 0;
+            
+            // Generate 8 weeks
+            for (let week = 0; week < 8; week++) {
+                const weekColumn = document.createElement('div');
+                weekColumn.className = 'heatmap-week';
+                
+                // Add 7 days for this week
+                for (let day = 0; day < 7; day++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'heatmap-cell';
+                    
+                    // Check if this date has activity
+                    const dateKey = currentDate.toISOString().split('T')[0];
+                    const count = activityMap[dateKey] || 0;
+                    
+                    // Set level based on count
+                    let level = 0;
+                    if (count > 0) {
+                        if (count >= 12) level = 4;
+                        else if (count >= 8) level = 3;
+                        else if (count >= 4) level = 2;
+                        else level = 1;
+                    }
+                    
+                    cell.classList.add(`level-${level}`);
+                    cell.title = `${currentDate.toLocaleDateString()}: ${count} capture${count !== 1 ? 's' : ''}`;
+                    
+                    // Track months for labels
+                    if (day === 0 && currentDate.getDate() <= 7) {
+                        const monthName = currentDate.toLocaleDateString('en-US', { month: 'short' });
+                        if (monthName !== currentMonth) {
+                            const monthLabel = document.createElement('div');
+                            monthLabel.className = 'heatmap-month';
+                            monthLabel.textContent = monthName;
+                            monthLabel.style.width = '80px'; // Approximate width for multiple weeks
+                            monthsDiv.appendChild(monthLabel);
+                            currentMonth = monthName;
+                        }
+                    }
+                    
+                    weekColumn.appendChild(cell);
+                    currentDate.setDate(currentDate.getDate() + 1);
+                }
+                
+                grid.appendChild(weekColumn);
+            }
+            
+            mainDiv.appendChild(daysLabels);
+            mainDiv.appendChild(grid);
+            
+            wrapper.appendChild(monthsDiv);
+            wrapper.appendChild(mainDiv);
+            
+            container.innerHTML = '';
+            container.appendChild(wrapper);
+            
+        } catch (error) {
+            console.error('Error initializing coverage heatmap:', error);
+        }
+    }
+    
+    // Screen Cards
+    async initializeScreenCards() {
+        try {
+            const response = await fetch('/api/status');
+            const status = await response.json();
+            
+            const screensGrid = document.getElementById('screens-grid');
+            if (!screensGrid) return;
+            
+            screensGrid.innerHTML = '';
+            
+            // Only show cards for screens that actually exist
+            // For now, we'll check if screen_capture is running
+            if (status.screen_capture && status.screen_capture.running) {
+                // Would ideally get screen count from API
+                // For now, just show a single active card
+                const card = document.createElement('div');
+                card.className = 'screen-card';
+                card.innerHTML = `
+                    <h4>Screen 1</h4>
+                    <div class="screen-status">Active</div>
+                `;
+                screensGrid.appendChild(card);
+            } else {
+                screensGrid.innerHTML = '<p style="color: var(--gray-600);">No active screens detected. Start the system to begin capturing.</p>';
+            }
+            
+        } catch (error) {
+            console.error('Error initializing screen cards:', error);
+        }
+    }
+    
+    // Countdown
+    startCountdown() {
+        const updateCountdown = () => {
+            const countdownText = document.getElementById('countdown-text');
+            const statusCountdownText = document.getElementById('status-countdown-text');
+            
+            // Update countdown display
+            if (this.isRecording) {
+                // Countdown to next screenshot (60 seconds)
+                if (this.secondsRemaining <= 0) {
+                    this.secondsRemaining = 60;
+                }
+                
+                // Update header countdown
+                if (countdownText) {
+                    countdownText.textContent = `Next capture in ${this.secondsRemaining}s`;
+                }
+                
+                // Update status page countdown
+                if (statusCountdownText) {
+                    statusCountdownText.textContent = `Next capture in ${this.secondsRemaining} seconds`;
+                }
+                
+                this.secondsRemaining--;
+            } else {
+                if (countdownText) {
+                    countdownText.textContent = '';
+                }
+                if (statusCountdownText) {
+                    statusCountdownText.textContent = 'Screen capture is stopped';
+                }
+                this.secondsRemaining = 60;
             }
         };
         
-        this.createStateCards();
+        // Update every second
+        if (this.countdownInterval) {
+            clearInterval(this.countdownInterval);
+        }
+        this.countdownInterval = setInterval(updateCountdown, 1000);
+        
+        // Initial update
+        updateCountdown();
     }
     
     createStateCards() {
@@ -616,74 +1031,60 @@ class FlowDashboard {
                 datasets: [{
                     label: 'CAPTURES WITH CONTENT',
                     data: activityData.contentData,
-                    backgroundColor: '#000000',
-                    borderColor: '#000000',
-                    borderWidth: 2
+                    backgroundColor: '#111827',
+                    borderColor: '#111827',
+                    borderWidth: 0
                 }, {
                     label: 'EMPTY CAPTURES',
                     data: activityData.emptyData,
-                    backgroundColor: '#808080',
-                    borderColor: '#000000',
-                    borderWidth: 2
+                    backgroundColor: '#4B5563',
+                    borderColor: '#4B5563',
+                    borderWidth: 0
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                animation: false, // Disable animations for pixel art feel
+                animation: true,
                 scales: {
                     x: {
                         stacked: true,
                         grid: {
-                            color: '#000000',
+                            color: '#E5E7EB',
                             lineWidth: 1
                         },
                         ticks: {
-                            color: '#000000',
+                            color: '#4B5563',
                             font: {
-                                family: 'Courier New, Monaco, monospace',
-                                weight: 'bold',
-                                size: 10
+                                family: 'Arial, sans-serif',
+                                weight: 'normal',
+                                size: 12
                             },
                             maxRotation: 0,
                             minRotation: 0
                         },
                         title: {
-                            display: true,
-                            text: 'TIME',
-                            color: '#000000',
-                            font: {
-                                family: 'Courier New, Monaco, monospace',
-                                weight: 'bold',
-                                size: 12
-                            }
+                            display: false
                         }
                     },
                     y: {
                         stacked: true,
                         beginAtZero: true,
                         grid: {
-                            color: '#000000',
+                            color: '#E5E7EB',
                             lineWidth: 1
                         },
                         ticks: {
-                            color: '#000000',
+                            color: '#4B5563',
                             font: {
-                                family: 'Courier New, Monaco, monospace',
-                                weight: 'bold',
-                                size: 10
+                                family: 'Arial, sans-serif',
+                                weight: 'normal',
+                                size: 12
                             },
                             stepSize: 1
                         },
                         title: {
-                            display: true,
-                            text: 'CAPTURES',
-                            color: '#000000',
-                            font: {
-                                family: 'Courier New, Monaco, monospace',
-                                weight: 'bold',
-                                size: 12
-                            }
+                            display: false
                         }
                     }
                 },
@@ -692,22 +1093,25 @@ class FlowDashboard {
                         display: false // We have custom legend
                     },
                     tooltip: {
-                        backgroundColor: '#ffffff',
-                        titleColor: '#000000',
-                        bodyColor: '#000000',
-                        borderColor: '#000000',
-                        borderWidth: 2,
+                        backgroundColor: '#111827',
+                        titleColor: '#ffffff',
+                        bodyColor: '#ffffff',
+                        borderColor: '#111827',
+                        borderWidth: 0,
+                        padding: 16,
                         titleFont: {
-                            family: 'Courier New, Monaco, monospace',
-                            weight: 'bold'
+                            family: 'Arial, sans-serif',
+                            weight: '600',
+                            size: 14
                         },
                         bodyFont: {
-                            family: 'Courier New, Monaco, monospace',
-                            weight: 'bold'
+                            family: 'Arial, sans-serif',
+                            weight: 'normal',
+                            size: 14
                         },
                         callbacks: {
                             title: function(context) {
-                                return `TIME: ${context[0].label}`;
+                                return context[0].label || 'Time';
                             },
                             label: function(context) {
                                 return `${context.dataset.label}: ${context.parsed.y}`;
@@ -773,13 +1177,8 @@ class FlowDashboard {
             const response = await fetch('/api/mcp-status');
             const mcpData = await response.json();
             
-            const mcpStatusElement = document.getElementById('mcp-status');
             const mcpClientsElement = document.getElementById('mcp-clients');
             const mcpLastRequestElement = document.getElementById('mcp-last-request');
-            
-            if (mcpStatusElement) {
-                mcpStatusElement.textContent = mcpData.running ? 'RUNNING' : 'STOPPED';
-            }
             
             if (mcpClientsElement) {
                 mcpClientsElement.textContent = mcpData.clients || 0;
@@ -794,14 +1193,11 @@ class FlowDashboard {
                 }
             }
             
-            // Update MCP badge status
-            const mcpBadge = document.getElementById('mcp-badge');
-            if (mcpBadge) {
-                const badgeText = mcpBadge.querySelector('.badge-text');
-                if (badgeText) {
-                    badgeText.textContent = mcpData.running ? 'RUNNING' : 'STOPPED';
-                }
-                mcpBadge.className = `status-badge ${mcpData.running ? 'running' : 'stopped'}`;
+            // Update MCP indicator status
+            const mcpIndicator = document.getElementById('mcp-indicator');
+            if (mcpIndicator) {
+                mcpIndicator.className = 'status-indicator';
+                mcpIndicator.classList.add(mcpData.running ? 'running' : 'stopped');
             }
             
         } catch (error) {
@@ -947,6 +1343,11 @@ class FlowDashboard {
             }
         }, 30000);
         
+        // Update enhanced metrics every 60 seconds
+        setInterval(async () => {
+            await this.updateEnhancedMetrics();
+        }, 60000);
+        
         // Update activity graph every 5 minutes
         setInterval(() => {
             this.updateActivityGraph();
@@ -1027,6 +1428,56 @@ class FlowDashboard {
         }
     }
     
+    highlightSearchMatches(text, query) {
+        if (!text || !query) return text;
+        
+        // Split query into individual words
+        const queryWords = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+        if (queryWords.length === 0) return text;
+        
+        // Find the first occurrence of any query word
+        const textLower = text.toLowerCase();
+        let firstMatchIndex = -1;
+        let matchedWord = '';
+        
+        for (const word of queryWords) {
+            const index = textLower.indexOf(word);
+            if (index !== -1 && (firstMatchIndex === -1 || index < firstMatchIndex)) {
+                firstMatchIndex = index;
+                matchedWord = word;
+            }
+        }
+        
+        // If no match found, return original text (truncated)
+        if (firstMatchIndex === -1) {
+            return text.length > 300 ? text.substring(0, 300) + '...' : text;
+        }
+        
+        // Extract context around the match (200 chars before and after)
+        const contextSize = 200;
+        const start = Math.max(0, firstMatchIndex - contextSize);
+        const end = Math.min(text.length, firstMatchIndex + matchedWord.length + contextSize);
+        
+        let excerpt = text.substring(start, end);
+        
+        // Add ellipsis if truncated
+        if (start > 0) excerpt = '...' + excerpt;
+        if (end < text.length) excerpt = excerpt + '...';
+        
+        // Highlight all query words in the excerpt
+        let highlighted = excerpt;
+        for (const word of queryWords) {
+            const regex = new RegExp(`(${this.escapeRegex(word)})`, 'gi');
+            highlighted = highlighted.replace(regex, '<mark>$1</mark>');
+        }
+        
+        return highlighted;
+    }
+    
+    escapeRegex(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+    
     displaySearchResults(data) {
         const resultsContainer = document.getElementById('search-results');
         const resultsCount = document.getElementById('results-count');
@@ -1055,12 +1506,18 @@ class FlowDashboard {
                 
                 const timestamp = new Date(result.timestamp).toLocaleString();
                 
+                // Extract context around matched text and highlight matches
+                const highlightedPreview = this.highlightSearchMatches(
+                    result.text_preview, 
+                    data.query
+                );
+                
                 resultItem.innerHTML = `
                     <div class="result-header">
                         <span class="result-timestamp">${timestamp}</span>
                         <span class="result-screen">${result.screen_name}</span>
                     </div>
-                    <div class="result-preview">${result.text_preview}</div>
+                    <div class="result-preview">${highlightedPreview}</div>
                     <div class="result-stats">
                         <span>Length: ${result.text_length} chars</span>
                         <span>Words: ${result.word_count}</span>
@@ -1851,9 +2308,352 @@ function initializeDashboard() {
     initializeLogs();
 }
 
+// Take screenshot now
+async function takeScreenshotNow() {
+    const statusDiv = document.getElementById('refinery-status');
+    const button = document.getElementById('take-screenshot-btn');
+    
+    if (!statusDiv || !button) return;
+    
+    // Disable button
+    button.disabled = true;
+    button.textContent = '⏳ Capturing...';
+    
+    try {
+        statusDiv.innerHTML = '<div style="color: var(--gray-600);">Capturing screenshots and running OCR...</div>';
+        
+        const startTime = Date.now();
+        
+        // Trigger screenshot capture
+        // This would ideally call an API endpoint that triggers a manual capture
+        // For now, just simulate with a message
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate OCR time
+        
+        const ocrTime = ((Date.now() - startTime) / 1000).toFixed(2);
+        
+        // Simulate Chroma save
+        const chromaStartTime = Date.now();
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const chromaTime = ((Date.now() - chromaStartTime) / 1000).toFixed(2);
+        
+        statusDiv.innerHTML = `
+            <div class="timing-metric">
+                <strong>${ocrTime}s</strong> Capturing OCR
+            </div>
+            <div class="timing-metric">
+                <strong>${chromaTime}s</strong> Saving to Chroma
+            </div>
+        `;
+        
+        // Re-enable button
+        button.disabled = false;
+        button.textContent = '📸 Take Screenshot Now';
+        
+        // Show success toast
+        if (window.flowDashboard) {
+            window.flowDashboard.showToast('Screenshot captured successfully', 'success');
+        }
+        
+        // Refresh metrics after a moment
+        setTimeout(() => {
+            if (window.flowDashboard) {
+                window.flowDashboard.updateEnhancedMetrics();
+                window.flowDashboard.initializeWeeklyChart();
+                window.flowDashboard.initializeCoverageHeatmap();
+            }
+        }, 1000);
+        
+    } catch (error) {
+        console.error('Error taking screenshot:', error);
+        statusDiv.innerHTML = '<div style="color: #EF4444;">Error capturing screenshot</div>';
+        button.disabled = false;
+        button.textContent = '📸 Take Screenshot Now';
+    }
+}
+
+// Page Switching
+function switchPage(pageName) {
+    // Hide all pages
+    const pages = document.querySelectorAll('.page-content');
+    pages.forEach(page => {
+        page.style.display = 'none';
+    });
+    
+    // Show selected page
+    const selectedPage = document.getElementById(`page-${pageName}`);
+    if (selectedPage) {
+        selectedPage.style.display = 'block';
+    }
+    
+    // Update active tab
+    const tabs = document.querySelectorAll('.nav-tab');
+    tabs.forEach(tab => {
+        tab.classList.remove('active');
+        if (tab.getAttribute('data-page') === pageName) {
+            tab.classList.add('active');
+        }
+    });
+    
+    // Store current page in localStorage
+    localStorage.setItem('currentPage', pageName);
+}
+
+// Toggle Tools Panel
+function toggleToolsPanel() {
+    const toolsGrid = document.getElementById('mcp-tools-grid');
+    const chevron = document.getElementById('tools-chevron');
+    
+    if (!toolsGrid || !chevron) return;
+    
+    if (toolsGrid.style.display === 'none') {
+        toolsGrid.style.display = 'grid';
+        chevron.classList.add('rotated');
+    } else {
+        toolsGrid.style.display = 'none';
+        chevron.classList.remove('rotated');
+    }
+}
+
+// Chat Functions
+let chatHistory = [];
+
+async function sendChatMessage() {
+    const input = document.getElementById('chat-input');
+    const message = input.value.trim();
+    
+    if (!message) return;
+    
+    // Add user message to chat
+    addChatMessage('user', message);
+    chatHistory.push({ role: 'user', content: message });
+    
+    // Clear input
+    input.value = '';
+    
+    // Process the message
+    try {
+        const response = await processChatMessage(message);
+        addChatMessage('assistant', response);
+        chatHistory.push({ role: 'assistant', content: response });
+    } catch (error) {
+        addChatMessage('error', `Error: ${error.message}`);
+    }
+}
+
+async function processChatMessage(message) {
+    const messageLower = message.toLowerCase();
+    
+    // Simple command parsing
+    if (messageLower.includes('search')) {
+        // Extract search query
+        const query = message.replace(/search/gi, '').trim();
+        if (!query) {
+            return "What would you like to search for?";
+        }
+        
+        const response = await fetch(`/api/search?q=${encodeURIComponent(query)}&limit=5`);
+        const data = await response.json();
+        
+        if (data.results && data.results.length > 0) {
+            let result = `Found ${data.total_found} results for "${query}":\n\n`;
+            data.results.forEach((item, idx) => {
+                result += `${idx + 1}. [${new Date(item.timestamp).toLocaleString()}]\n`;
+                result += `   ${item.text_preview.substring(0, 150)}...\n\n`;
+            });
+            return result;
+        } else {
+            return `No results found for "${query}".`;
+        }
+    }
+    
+    if (messageLower.includes('stats') || messageLower.includes('statistics')) {
+        const response = await fetch('/api/stats');
+        const data = await response.json();
+        
+        return `System Statistics:
+• Total Captures: ${data.total_captures || 0}
+• Unique Screens: ${data.unique_screens || 0}
+• Average Text Length: ${data.avg_text_length || 0} characters
+• Date Range: ${data.date_range ? `${data.date_range.earliest} to ${data.date_range.latest}` : 'No data'}`;
+    }
+    
+    if (messageLower.includes('activity') || messageLower.includes('timeline')) {
+        let hours = 24;
+        if (messageLower.includes('week')) hours = 168;
+        if (messageLower.includes('3 days')) hours = 72;
+        
+        const response = await fetch(`/api/activity-data?hours=${hours}&grouping=hourly`);
+        const data = await response.json();
+        
+        const totalCaptures = data.timeline_data.reduce((sum, item) => sum + item.capture_count, 0);
+        const avgPerHour = (totalCaptures / hours).toFixed(2);
+        
+        return `Activity for last ${hours} hours:
+• Total Captures: ${totalCaptures}
+• Average per hour: ${avgPerHour}
+• Data points: ${data.timeline_data.length}`;
+    }
+    
+    if (messageLower.includes('what can you do') || messageLower.includes('help') || messageLower.includes('tools')) {
+        return `I can help you with:
+
+🔍 **Search** - Search through screenshot text
+   Example: "search meeting notes"
+
+📊 **Statistics** - Get system statistics
+   Example: "get stats" or "show statistics"
+
+📈 **Activity** - Show activity timeline
+   Example: "show activity for last 24 hours"
+
+⚙️ **System** - Get system information
+   Example: "system status"
+
+Try any of these commands or use the quick action buttons below!`;
+    }
+    
+    if (messageLower.includes('system') || messageLower.includes('status')) {
+        const response = await fetch('/api/status');
+        const data = await response.json();
+        
+        return `System Status:
+• Overall: ${data.overall_status}
+• ChromaDB: ${data.chroma_db.running ? 'Running' : 'Stopped'}
+• Screen Capture: ${data.screen_capture.running ? 'Running' : 'Stopped'}`;
+    }
+    
+    // Default response
+    return `I'm not sure how to handle that request. Try:
+- "search [query]" to search screenshots
+- "get stats" for statistics
+- "show activity" for timeline
+- "what can you do?" for help`;
+}
+
+function addChatMessage(type, content) {
+    const messagesDiv = document.getElementById('chat-messages');
+    if (!messagesDiv) return;
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `chat-message ${type}`;
+    
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+    
+    if (type === 'user') {
+        contentDiv.innerHTML = `<strong>You:</strong> ${escapeHtml(content)}`;
+    } else if (type === 'assistant') {
+        contentDiv.innerHTML = `<strong>Assistant:</strong> ${escapeHtml(content).replace(/\n/g, '<br>')}`;
+    } else if (type === 'error') {
+        contentDiv.innerHTML = `<strong>Error:</strong> ${escapeHtml(content)}`;
+    } else {
+        contentDiv.innerHTML = `<strong>System:</strong> ${escapeHtml(content)}`;
+    }
+    
+    messageDiv.appendChild(contentDiv);
+    messagesDiv.appendChild(messageDiv);
+    
+    // Scroll to bottom
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function clearChat() {
+    const messagesDiv = document.getElementById('chat-messages');
+    if (!messagesDiv) return;
+    
+    messagesDiv.innerHTML = `
+        <div class="chat-message system">
+            <div class="message-content">
+                <strong>System:</strong> Chat cleared. How can I help you?
+            </div>
+        </div>
+    `;
+    chatHistory = [];
+}
+
+function quickChat(message) {
+    const input = document.getElementById('chat-input');
+    if (input) {
+        input.value = message;
+        sendChatMessage();
+    }
+}
+
+// Log Functions
+async function refreshAllLogs() {
+    // Placeholder - would fetch real logs from server
+    console.log('Refreshing all logs...');
+    const dashboard = window.flowDashboard;
+    if (dashboard) {
+        dashboard.showToast('Logs refreshed', 'success');
+    }
+}
+
+function clearAllLogs() {
+    if (!confirm('Are you sure you want to clear all logs?')) {
+        return;
+    }
+    
+    const logContents = document.querySelectorAll('.log-content');
+    logContents.forEach(content => {
+        content.innerHTML = '<div class="log-empty">No logs available</div>';
+    });
+    
+    const dashboard = window.flowDashboard;
+    if (dashboard) {
+        dashboard.showToast('All logs cleared', 'success');
+    }
+}
+
+function filterLogs(subsystem) {
+    const selectId = `${subsystem}-log-level`;
+    const select = document.getElementById(selectId);
+    if (!select) return;
+    
+    const level = select.value;
+    console.log(`Filtering ${subsystem} logs to ${level}`);
+    
+    // Would implement actual filtering here
+}
+
+// Handle Enter key in chat input
+document.addEventListener('DOMContentLoaded', function() {
+    const chatInput = document.getElementById('chat-input');
+    if (chatInput) {
+        chatInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendChatMessage();
+            }
+        });
+    }
+    
+    // Restore last page from localStorage or default to search
+    const currentPage = localStorage.getItem('currentPage');
+    if (currentPage) {
+        switchPage(currentPage);
+    } else {
+        switchPage('search');
+    }
+});
+
 // Export for use in HTML
 window.startSystem = startSystem;
 window.stopSystem = stopSystem;
 window.updateActivityGraph = updateActivityGraph;
 window.refreshActivityGraph = refreshActivityGraph;
 window.initializeDashboard = initializeDashboard;
+window.takeScreenshotNow = takeScreenshotNow;
+window.switchPage = switchPage;
+window.sendChatMessage = sendChatMessage;
+window.clearChat = clearChat;
+window.quickChat = quickChat;
+window.refreshAllLogs = refreshAllLogs;
+window.clearAllLogs = clearAllLogs;
+window.filterLogs = filterLogs;

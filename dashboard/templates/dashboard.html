@@ -12,42 +12,121 @@
     <div class="container">
         <!-- Header -->
         <header class="header">
-            <h1>█▀▀ █   █▀█ █ █ █</h1>
-            <div class="header-info">
-                <span class="version">v1.0</span>
-                <div class="status-indicator" id="connection-status">
-                    <span class="status-dot">●</span>
-                    <span class="status-text">ONLINE</span>
-                </div>
-            </div>
+            <h1>FLOW <span class="status-dot" id="status-dot"></span></h1>
         </header>
+
+        <!-- Navigation -->
+        <nav class="nav-tabs">
+            <button class="nav-tab active" data-page="search" onclick="switchPage('search')">Search</button>
+            <button class="nav-tab" data-page="chat" onclick="switchPage('chat')">Chat</button>
+            <button class="nav-tab" data-page="statistics" onclick="switchPage('statistics')">Statistics</button>
+            <button class="nav-tab" data-page="status" onclick="switchPage('status')">Status</button>
+            <button class="nav-tab" data-page="logs" onclick="switchPage('logs')">Logs</button>
+            <button class="nav-tab" data-page="debug" onclick="switchPage('debug')">Debug</button>
+        </nav>
 
         <!-- Main Content -->
         <main class="main-content">
-            <!-- Hamster Track Section -->
-            <section class="hamster-section">
-                <h2>▓▓▓ HAMSTER POWER ▓▓▓</h2>
-                <div class="track-container">
-                    <div class="track-outer">
-                        <div class="track-inner">
-                            <div class="hamster" id="hamster">
-                                <div class="hamster-sprite">🐹</div>
-                            </div>
-                            <div class="start-line">START</div>
-                            <div class="track-center">
-                                <div class="next-screenshot">
-                                    <div class="countdown" id="countdown">60</div>
-                                    <div class="label">SECONDS</div>
-                                </div>
-                            </div>
-                        </div>
+            <!-- Overview Page (Hidden) -->
+            <div class="page-content" id="page-overview" style="display: none;">
+            <!-- Weekly Activity Chart -->
+            <section class="weekly-chart-section">
+                <h2>Weekly Screenshot Activity</h2>
+                <div class="chart-container">
+                    <canvas id="weekly-bar-chart"></canvas>
+                </div>
+            </section>
+
+            <!-- Coverage Heatmap -->
+            <section class="coverage-heatmap-section">
+                <h2>7-Day Coverage</h2>
+                <div class="heatmap-container" id="coverage-heatmap">
+                    <!-- Will be populated by JavaScript -->
+                </div>
+            </section>
+            </div>
+            <!-- End Overview Page -->
+
+            <!-- Statistics Page -->
+            <div class="page-content" id="page-statistics" style="display: none;">
+
+            <!-- Enhanced Metrics Section -->
+            <section class="enhanced-metrics-section">
+                <h2>TODAY'S ACTIVITY</h2>
+                <div class="metrics-grid">
+                    <div class="metric-card primary">
+                        <h3>SCREENSHOTS TODAY</h3>
+                        <div class="metric-value" id="today-screenshot-count">-</div>
+                    </div>
+                    <div class="metric-card">
+                        <h3>TEXT CAPTURED</h3>
+                        <div class="metric-value" id="today-text-captured">-</div>
+                        <div class="metric-label">characters</div>
+                    </div>
+                    <div class="metric-card">
+                        <h3>ACTIVE HOURS</h3>
+                        <div class="metric-value" id="today-active-hours">-</div>
+                        <div class="metric-label">hours today</div>
+                    </div>
+                </div>
+
+                <h2>7-DAY OVERVIEW</h2>
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <h3>WEEKLY TOTAL</h3>
+                        <div class="metric-value" id="week-total-screenshots">-</div>
+                    </div>
+                    <div class="metric-card">
+                        <h3>DAILY AVERAGE</h3>
+                        <div class="metric-value" id="week-daily-average">-</div>
+                        <div class="metric-label">screenshots/day</div>
+                    </div>
+                    <div class="metric-card">
+                        <h3>MOST ACTIVE DAY</h3>
+                        <div class="metric-value small" id="week-most-active-day">-</div>
+                        <div class="metric-label" id="week-most-active-day-count">-</div>
+                    </div>
+                    <div class="metric-card">
+                        <h3>ACTIVE DAYS</h3>
+                        <div class="metric-value" id="week-active-days">-</div>
+                        <div class="metric-label">out of 7</div>
+                    </div>
+                    <div class="metric-card">
+                        <h3>SUCCESS RATE</h3>
+                        <div class="metric-value" id="week-success-rate">-</div>
+                        <div class="metric-label">captures with text</div>
+                    </div>
+                </div>
+
+                <h2>CHROMADB STATUS</h2>
+                <div class="metrics-grid">
+                    <div class="metric-card primary">
+                        <h3>DOCUMENTS IN DB</h3>
+                        <div class="metric-value" id="chroma-total-documents">-</div>
+                    </div>
+                    <div class="metric-card">
+                        <h3>COLLECTIONS</h3>
+                        <div class="metric-value" id="chroma-collection-count">-</div>
+                        <div class="metric-label" id="chroma-status-label">checking...</div>
+                    </div>
+                </div>
+
+                <h2>SYSTEM DEBUG INFO</h2>
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <h3>OCR FILES ON DISK</h3>
+                        <div class="metric-value" id="system-ocr-files">-</div>
+                    </div>
+                    <div class="metric-card">
+                        <h3>DISK SPACE USED</h3>
+                        <div class="metric-value small" id="system-disk-space">-</div>
                     </div>
                 </div>
             </section>
 
-            <!-- Statistics Panel (moved below hamster) -->
+            <!-- Statistics Panel (moved below enhanced metrics) -->
             <section class="stats-section">
-                <h2>▓▓▓ STATISTICS ▓▓▓</h2>
+                <h2>ALL-TIME STATISTICS</h2>
                 <div class="stats-grid">
                     <div class="stat-card">
                         <h3>TOTAL CAPTURES</h3>
@@ -61,179 +140,279 @@
                         <h3>AVG TEXT LENGTH</h3>
                         <div class="stat-value" id="avg-text-length">{{ stats.avg_text_length or 0 }}</div>
                     </div>
-                    <div class="stat-card">
-                        <h3>DATE RANGE</h3>
-                        <div class="stat-value small" id="date-range">
-                            {% if stats.date_range %}
-                                {{ stats.date_range.earliest[:10] }} to {{ stats.date_range.latest[:10] }}
-                            {% else %}
-                                NO DATA
-                            {% endif %}
-                        </div>
-                    </div>
                 </div>
             </section>
+            </div>
+            <!-- End Overview Page -->
 
-            <!-- Real-Time Hamster States Panel -->
-            <section class="hamster-states-panel">
-                <h2>▓▓▓ HAMSTER STATES ▓▓▓</h2>
-                <div class="states-container">
-                    <div class="state-section">
-                        <h3>SCREEN REFINERY</h3>
-                        <div class="state-grid" id="screen-states">
-                            <!-- Dynamic state cards will be populated here -->
-                        </div>
-                    </div>
-                    <div class="state-section">
-                        <h3>AUDIO REFINERY</h3>
-                        <div class="state-grid" id="audio-states">
-                            <!-- Dynamic state cards will be populated here -->
-                        </div>
-                    </div>
-                </div>
-                <div class="state-legend">
-                    <div class="legend-item">
-                        <span class="state-dot idle"></span>
-                        <span>IDLE</span>
-                    </div>
-                    <div class="legend-item">
-                        <span class="state-dot active"></span>
-                        <span>ACTIVE</span>
-                    </div>
-                    <div class="legend-item">
-                        <span class="state-dot processing"></span>
-                        <span>PROCESSING</span>
-                    </div>
-                    <div class="legend-item">
-                        <span class="state-dot error"></span>
-                        <span>ERROR</span>
-                    </div>
-                </div>
-            </section>
-
-            <!-- System Status Panel -->
-            <section class="status-panel">
-                <h2>▓▓▓ SYSTEM STATUS ▓▓▓</h2>
-                <div class="status-grid">
-                    <div class="status-card" id="overall-status">
-                        <div class="status-header">
-                            <h3>OVERALL SYSTEM</h3>
-                            <div class="status-badge" id="overall-badge">
-                                <span class="badge-text">{{ status.overall_status|upper }}</span>
+            <!-- Search Page -->
+            <div class="page-content" id="page-search">
+                <h2>SEARCH</h2>
+                
+                <section class="search-section">
+                    <div class="search-container">
+                        <div class="search-form">
+                            <input type="text" id="search-query" placeholder="Search for text in screenshots..." class="search-input">
+                            <div class="search-filters">
+                                <input type="date" id="search-start-date" class="date-input">
+                                <input type="date" id="search-end-date" class="date-input">
+                                <button class="btn btn-primary" onclick="performSearch()">
+                                    Search
+                                </button>
                             </div>
                         </div>
-                        <div class="status-controls">
-                            <button id="start-btn" class="btn btn-success" onclick="startSystem()">
-                                ▶ START
-                            </button>
-                            <button id="stop-btn" class="btn btn-danger" onclick="stopSystem()">
-                                ■ STOP
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="status-card">
-                        <div class="status-header">
-                            <h3>CHROMADB SERVER</h3>
-                            <div class="status-badge" id="chroma-badge">
-                                <span class="badge-text">{{ "RUNNING" if status.chroma_db.running else "STOPPED" }}</span>
+                        <div class="search-results" id="search-results" style="display: none;">
+                            <div class="results-header">
+                                <h3>Search Results</h3>
+                                <span class="results-count" id="results-count">0 results</span>
+                            </div>
+                            <div class="results-list" id="results-list">
+                                <!-- Results will be populated here -->
                             </div>
                         </div>
-                        <div class="status-details">
-                            <p>HEALTH: <span id="chroma-health">{{ "OK" if status.chroma_db.healthy else "ERROR" }}</span></p>
-                            {% if status.chroma_db.pid %}
-                            <p>PID: <span id="chroma-pid">{{ status.chroma_db.pid }}</span></p>
-                            {% endif %}
-                        </div>
                     </div>
+                </section>
+            </div>
+            <!-- End Search Page -->
 
-                    <div class="status-card">
-                        <div class="status-header">
-                            <h3>SCREEN CAPTURE</h3>
-                            <div class="status-badge" id="capture-badge">
-                                <span class="badge-text">{{ "RUNNING" if status.screen_capture.running else "STOPPED" }}</span>
+            <!-- Chat Page -->
+            <div class="page-content" id="page-chat" style="display: none;">
+                <h2>MCP CHAT</h2>
+                
+                <!-- Chat Interface -->
+                <section class="chat-panel">
+                    <h3>Chat Interface</h3>
+                    
+                    <!-- Chat Messages -->
+                    <div class="chat-messages" id="chat-messages">
+                        <div class="chat-message system">
+                            <div class="message-content">
+                                <strong>System:</strong> MCP Chat ready. Available tools: search, stats, activity, system. Try "search meeting notes" or see available tools below.
                             </div>
                         </div>
-                        <div class="status-details">
-                            <p>HEALTH: <span id="capture-health">{{ "OK" if status.screen_capture.healthy else "ERROR" }}</span></p>
-                            {% if status.screen_capture.pid %}
-                            <p>PID: <span id="capture-pid">{{ status.screen_capture.pid }}</span></p>
-                            {% endif %}
+                    </div>
+                    
+                    <!-- Chat Input -->
+                    <div class="chat-input-container">
+                        <textarea 
+                            id="chat-input" 
+                            class="chat-input" 
+                            placeholder="Type your message or command... (e.g., 'search meeting notes', 'get stats')"
+                            rows="3"
+                        ></textarea>
+                        <div class="chat-input-actions">
+                            <button class="btn btn-secondary" onclick="clearChat()">Clear</button>
+                            <button class="btn btn-primary" onclick="sendChatMessage()">Send</button>
                         </div>
                     </div>
+                </section>
 
-                    <div class="status-card">
-                        <div class="status-header">
-                            <h3>MCP SERVER</h3>
-                            <div class="status-badge" id="mcp-badge">
-                                <span class="badge-text" id="mcp-status">CHECKING</span>
+                <!-- Available Tools -->
+                <section class="tools-panel">
+                    <h3 class="tools-panel-header" onclick="toggleToolsPanel()">
+                        Available Tools
+                        <span class="chevron" id="tools-chevron">▼</span>
+                    </h3>
+                    <div class="tools-grid" id="mcp-tools-grid" style="display: none;">
+                        <div class="tool-card" data-tool="search">
+                            <h4>🔍 Search Screenshots</h4>
+                            <p>Search through OCR text from screenshots</p>
+                            <div class="tool-params">
+                                <span>query, limit, start_date, end_date</span>
                             </div>
                         </div>
-                        <div class="status-details">
-                            <p>CLIENTS: <span id="mcp-clients">0</span></p>
-                            <p>LAST REQUEST: <span id="mcp-last-request">NEVER</span></p>
+                        <div class="tool-card" data-tool="stats">
+                            <h4>📊 Get Statistics</h4>
+                            <p>Get system statistics and metrics</p>
+                            <div class="tool-params">
+                                <span>No parameters</span>
+                            </div>
+                        </div>
+                        <div class="tool-card" data-tool="activity">
+                            <h4>📈 Activity Graph</h4>
+                            <p>Generate activity timeline data</p>
+                            <div class="tool-params">
+                                <span>hours, grouping</span>
+                            </div>
+                        </div>
+                        <div class="tool-card" data-tool="system">
+                            <h4>⚙️ System Info</h4>
+                            <p>Get system information and status</p>
+                            <div class="tool-params">
+                                <span>No parameters</span>
+                            </div>
                         </div>
                     </div>
-                </div>
-            </section>
+                </section>
+            </div>
+            <!-- End Chat Page -->
 
-            <!-- OCR Activity Timeline -->
-            <section class="activity-section">
-                <div class="section-header">
-                    <h2>▓▓▓ ACTIVITY TIMELINE ▓▓▓</h2>
-                    <div class="time-controls">
-                        <select id="time-range" onchange="updateActivityGraph()">
-                            <option value="24">Last 24 Hours</option>
-                            <option value="72" selected>Last 3 Days</option>
-                            <option value="168">Last Week</option>
-                        </select>
-                        <button class="btn btn-secondary" onclick="refreshActivityGraph()">
-                            ↻ REFRESH
-                        </button>
-                    </div>
-                </div>
-                <div class="chart-container">
-                    <canvas id="activity-chart"></canvas>
-                </div>
-                <div class="chart-legend">
-                    <div class="legend-item">
-                        <span class="legend-color active"></span>
-                        <span>CAPTURES WITH CONTENT</span>
-                    </div>
-                    <div class="legend-item">
-                        <span class="legend-color empty"></span>
-                        <span>EMPTY CAPTURES</span>
-                    </div>
-                </div>
-            </section>
+            <!-- Status Page -->
+            <div class="page-content" id="page-status" style="display: none;">
+                <h2>SYSTEM STATUS</h2>
+                
+                <!-- System Status Panel -->
+                <section class="status-panel">
+                    <h3>Core Services</h3>
+                    <div class="status-grid">
+                        <div class="status-card" id="overall-status">
+                            <div class="status-header">
+                                <span class="status-indicator" id="overall-indicator"></span>
+                                <h4>OVERALL SYSTEM</h4>
+                            </div>
+                            <div class="status-controls">
+                                <button id="start-btn" class="btn btn-success" onclick="startSystem()">
+                                    Start
+                                </button>
+                                <button id="stop-btn" class="btn btn-danger" onclick="stopSystem()">
+                                    Stop
+                                </button>
+                            </div>
+                        </div>
 
+                        <div class="status-card">
+                            <div class="status-header">
+                                <span class="status-indicator" id="chroma-indicator"></span>
+                                <h4>CHROMADB SERVER</h4>
+                            </div>
+                            <div class="status-details">
+                                <p>HEALTH: <span id="chroma-health">{{ "Healthy" if status.chroma_db.healthy else "ERROR" }}</span></p>
+                                {% if status.chroma_db.pid %}
+                                <p>PID: <span id="chroma-pid">{{ status.chroma_db.pid }}</span></p>
+                                {% endif %}
+                            </div>
+                        </div>
 
+                        <div class="status-card">
+                            <div class="status-header">
+                                <span class="status-indicator" id="capture-indicator"></span>
+                                <h4>SCREEN CAPTURE</h4>
+                            </div>
+                            <div class="status-details">
+                                <p>HEALTH: <span id="capture-health">{{ "Healthy" if status.screen_capture.healthy else "ERROR" }}</span></p>
+                                {% if status.screen_capture.pid %}
+                                <p>PID: <span id="capture-pid">{{ status.screen_capture.pid }}</span></p>
+                                {% endif %}
+                            </div>
+                        </div>
 
-            <!-- Search Interface -->
-            <section class="search-section">
-                <h2>▓▓▓ SEARCH OCR DATA ▓▓▓</h2>
-                <div class="search-container">
-                    <div class="search-form">
-                        <input type="text" id="search-query" placeholder="SEARCH FOR TEXT IN SCREENSHOTS..." class="search-input">
-                        <div class="search-filters">
-                            <input type="date" id="search-start-date" class="date-input">
-                            <input type="date" id="search-end-date" class="date-input">
-                            <button class="btn btn-primary" onclick="performSearch()">
-                                🔍 SEARCH
-                            </button>
+                        <div class="status-card">
+                            <div class="status-header">
+                                <span class="status-indicator" id="mcp-indicator"></span>
+                                <h4>MCP SERVER</h4>
+                            </div>
+                            <div class="status-details">
+                                <p>CLIENTS: <span id="mcp-clients">0</span></p>
+                                <p>LAST REQUEST: <span id="mcp-last-request">NEVER</span></p>
+                            </div>
                         </div>
                     </div>
-                    <div class="search-results" id="search-results" style="display: none;">
-                        <div class="results-header">
-                            <h3>Search Results</h3>
-                            <span class="results-count" id="results-count">0 results</span>
-                        </div>
-                        <div class="results-list" id="results-list">
-                            <!-- Results will be populated here -->
+                </section>
+
+                <!-- Screen Refinery Status -->
+                <section class="screen-refinery-panel">
+                    <h3>Screen Refinery</h3>
+                    <div class="refinery-status" id="refinery-status">
+                        <div class="countdown-display">
+                            <p id="status-countdown-text">Checking system status...</p>
                         </div>
                     </div>
+                    <div class="screens-grid" id="screens-grid">
+                        <!-- Dynamic screen cards will be populated here -->
+                    </div>
+                </section>
+            </div>
+            <!-- End Status Page -->
+
+            <!-- Logs Page -->
+            <div class="page-content" id="page-logs" style="display: none;">
+                <h2>SYSTEM LOGS</h2>
+                
+                <div class="logs-controls">
+                    <button class="btn btn-secondary" onclick="refreshAllLogs()">Refresh All</button>
+                    <button class="btn btn-secondary" onclick="clearAllLogs()">Clear All</button>
+                    <label>
+                        <input type="checkbox" id="auto-scroll-logs" checked> Auto-scroll
+                    </label>
                 </div>
-            </section>
+
+                <!-- Screen Capture Logs -->
+                <section class="log-panel">
+                    <div class="log-panel-header">
+                        <h3>Screen Capture</h3>
+                        <div class="log-controls">
+                            <select id="screen-log-level" onchange="filterLogs('screen')">
+                                <option value="all">All Levels</option>
+                                <option value="ERROR">Error</option>
+                                <option value="WARNING">Warning</option>
+                                <option value="INFO">Info</option>
+                                <option value="DEBUG">Debug</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="log-content" id="screen-logs">
+                        <div class="log-empty">No logs available</div>
+                    </div>
+                </section>
+
+                <!-- ChromaDB Logs -->
+                <section class="log-panel">
+                    <div class="log-panel-header">
+                        <h3>ChromaDB</h3>
+                        <div class="log-controls">
+                            <select id="chroma-log-level" onchange="filterLogs('chroma')">
+                                <option value="all">All Levels</option>
+                                <option value="ERROR">Error</option>
+                                <option value="WARNING">Warning</option>
+                                <option value="INFO">Info</option>
+                                <option value="DEBUG">Debug</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="log-content" id="chroma-logs">
+                        <div class="log-empty">No logs available</div>
+                    </div>
+                </section>
+
+                <!-- Dashboard Logs -->
+                <section class="log-panel">
+                    <div class="log-panel-header">
+                        <h3>Dashboard</h3>
+                        <div class="log-controls">
+                            <select id="dashboard-log-level" onchange="filterLogs('dashboard')">
+                                <option value="all">All Levels</option>
+                                <option value="ERROR">Error</option>
+                                <option value="WARNING">Warning</option>
+                                <option value="INFO">Info</option>
+                                <option value="DEBUG">Debug</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="log-content" id="dashboard-logs">
+                        <div class="log-empty">No logs available</div>
+                    </div>
+                </section>
+
+                <!-- MCP Server Logs -->
+                <section class="log-panel">
+                    <div class="log-panel-header">
+                        <h3>MCP Server</h3>
+                        <div class="log-controls">
+                            <select id="mcp-log-level" onchange="filterLogs('mcp')">
+                                <option value="all">All Levels</option>
+                                <option value="ERROR">Error</option>
+                                <option value="WARNING">Warning</option>
+                                <option value="INFO">Info</option>
+                                <option value="DEBUG">Debug</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="log-content" id="mcp-logs">
+                        <div class="log-empty">No logs available</div>
+                    </div>
+                </section>
+            </div>
+            <!-- End Logs Page -->
 
         </main>
     </div>

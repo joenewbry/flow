@@ -233,6 +233,30 @@ async def broadcast_status_update():
         logger.error(f"Error broadcasting status update: {e}")
 
 
+async def broadcast_log(log_entry: dict):
+    """Broadcast a log entry to all connected WebSocket clients."""
+    if not websocket_connections:
+        return
+        
+    try:
+        message = {"type": "log_message", "data": log_entry}
+        
+        # Send to all connected clients
+        disconnected = []
+        for websocket in websocket_connections:
+            try:
+                await websocket.send_json(message)
+            except Exception:
+                disconnected.append(websocket)
+        
+        # Remove disconnected clients
+        for websocket in disconnected:
+            websocket_connections.remove(websocket)
+            
+    except Exception as e:
+        logger.error(f"Error broadcasting log: {e}")
+
+
 async def broadcast_hamster_state_update(state_data: Dict[str, Any]):
     """Broadcast hamster state update to all connected WebSocket clients."""
     if not websocket_connections:
@@ -320,16 +344,18 @@ async def get_mcp_status():
         
         # Check if MCP server process is running
         try:
-            # Look for the MCP server process
-            result = subprocess.run(['pgrep', '-f', 'mcp-server'], 
-                                  capture_output=True, text=True)
-            if result.returncode == 0:
-                mcp_status["running"] = True
-                
-                # Simulate client tracking (in real implementation, this would be actual data)
-                # You could track this via log files, shared memory, or a database
-                mcp_status["clients"] = 1 if result.stdout.strip() else 0
-                mcp_status["last_request"] = "2024-01-01T12:00:00Z"  # Placeholder
+            # Look for the MCP server process - check for multiple possible process names
+            mcp_processes = ['Flow MCP Server', 'mcp-server/server.py', 'mcp-server', 'start.sh']
+            for proc_name in mcp_processes:
+                result = subprocess.run(['pgrep', '-f', proc_name], 
+                                      capture_output=True, text=True)
+                if result.returncode == 0 and result.stdout.strip():
+                    mcp_status["running"] = True
+                    # Count the number of PIDs found
+                    pids = result.stdout.strip().split('\n')
+                    mcp_status["clients"] = len(pids)
+                    mcp_status["last_request"] = None  # Would need to track this separately
+                    break
                 
         except Exception as e:
             logger.error(f"Error checking MCP server process: {e}")

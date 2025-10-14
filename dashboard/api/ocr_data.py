@@ -465,6 +465,238 @@ class OCRDataService:
                 "results": [],
                 "total_found": 0
             }
+    
+    async def get_enhanced_metrics(self) -> Dict[str, Any]:
+        """Get enhanced metrics for dashboard monitoring and debugging."""
+        try:
+            now = datetime.now()
+            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            week_ago = now - timedelta(days=7)
+            
+            ocr_files = self._get_ocr_files()
+            
+            # Initialize counters
+            today_count = 0
+            today_text_length = 0
+            today_hours_active = set()
+            
+            week_counts_by_day = {}
+            week_text_length = 0
+            week_screens = set()
+            week_empty_count = 0
+            week_total_count = 0
+            
+            last_capture_time = None
+            total_disk_size = 0
+            
+            # Process files
+            for file_path in ocr_files:
+                try:
+                    # Get file size for disk usage
+                    total_disk_size += file_path.stat().st_size
+                    
+                    # Parse timestamp
+                    file_timestamp = self._parse_filename_timestamp(file_path.name)
+                    if not file_timestamp:
+                        file_timestamp = datetime.fromtimestamp(file_path.stat().st_mtime)
+                    
+                    # Track last capture
+                    if last_capture_time is None or file_timestamp > last_capture_time:
+                        last_capture_time = file_timestamp
+                    
+                    # Read file data
+                    data = self._read_ocr_file(file_path)
+                    if not data:
+                        continue
+                    
+                    text_length = data.get('text_length', 0)
+                    screen_name = data.get('screen_name', 'unknown')
+                    
+                    # Today's metrics
+                    if file_timestamp >= today_start:
+                        today_count += 1
+                        today_text_length += text_length
+                        today_hours_active.add(file_timestamp.hour)
+                    
+                    # 7-day metrics
+                    if file_timestamp >= week_ago:
+                        week_total_count += 1
+                        week_text_length += text_length
+                        week_screens.add(screen_name)
+                        
+                        if text_length <= 10:  # Consider 10 chars or less as "empty"
+                            week_empty_count += 1
+                        
+                        # Count by day
+                        day_key = file_timestamp.strftime("%Y-%m-%d")
+                        if day_key not in week_counts_by_day:
+                            week_counts_by_day[day_key] = 0
+                        week_counts_by_day[day_key] += 1
+                
+                except Exception as e:
+                    logger.debug(f"Error processing file {file_path} for metrics: {e}")
+                    continue
+            
+            # Calculate derived metrics
+            avg_per_day_7d = week_total_count / 7 if week_total_count > 0 else 0
+            most_active_day = max(week_counts_by_day.items(), key=lambda x: x[1]) if week_counts_by_day else (None, 0)
+            active_days_count = len(week_counts_by_day)
+            empty_rate = (week_empty_count / week_total_count * 100) if week_total_count > 0 else 0
+            success_rate = 100 - empty_rate
+            
+            # Calculate trend (compare first 3 days vs last 3 days)
+            if len(week_counts_by_day) >= 6:
+                sorted_days = sorted(week_counts_by_day.items())
+                first_half_avg = sum(count for _, count in sorted_days[:3]) / 3
+                second_half_avg = sum(count for _, count in sorted_days[-3:]) / 3
+                
+                if second_half_avg > first_half_avg * 1.1:
+                    trend = "increasing"
+                    trend_symbol = "↑"
+                elif second_half_avg < first_half_avg * 0.9:
+                    trend = "decreasing"
+                    trend_symbol = "↓"
+                else:
+                    trend = "stable"
+                    trend_symbol = "→"
+            else:
+                trend = "insufficient_data"
+                trend_symbol = "—"
+            
+            # Get ChromaDB stats
+            chroma_stats = await self._get_chroma_stats()
+            
+            # Calculate time since last capture
+            time_since_last = None
+            if last_capture_time:
+                delta = now - last_capture_time
+                minutes = int(delta.total_seconds() / 60)
+                if minutes < 60:
+                    time_since_last = f"{minutes}m ago"
+                elif minutes < 1440:  # Less than 24 hours
+                    hours = minutes // 60
+                    time_since_last = f"{hours}h ago"
+                else:
+                    days = minutes // 1440
+                    time_since_last = f"{days}d ago"
+            
+            # Format disk size
+            disk_size_mb = total_disk_size / (1024 * 1024)
+            if disk_size_mb < 1024:
+                disk_size_formatted = f"{disk_size_mb:.1f} MB"
+            else:
+                disk_size_gb = disk_size_mb / 1024
+                disk_size_formatted = f"{disk_size_gb:.2f} GB"
+            
+            return {
+                "today": {
+                    "screenshot_count": today_count,
+                    "text_captured": today_text_length,
+                    "active_hours": len(today_hours_active)
+                },
+                "seven_day": {
+                    "total_screenshots": week_total_count,
+                    "daily_average": round(avg_per_day_7d, 1),
+                    "most_active_day": most_active_day[0] if most_active_day[0] else "N/A",
+                    "most_active_day_count": most_active_day[1] if most_active_day[0] else 0,
+                    "active_days": active_days_count,
+                    "trend": trend,
+                    "trend_symbol": trend_symbol,
+                    "avg_text_length": round(week_text_length / week_total_count) if week_total_count > 0 else 0,
+                    "unique_screens": len(week_screens),
+                    "empty_capture_rate": round(empty_rate, 1)
+                },
+                "chromadb": {
+                    "total_documents": chroma_stats.get("total_documents", 0),
+                    "collections": chroma_stats.get("collections", []),
+                    "status": chroma_stats.get("status", "unknown"),
+                    "last_sync": chroma_stats.get("last_sync", "N/A")
+                },
+                "system": {
+                    "ocr_files_on_disk": len(ocr_files),
+                    "disk_space_used": disk_size_formatted,
+                    "disk_space_bytes": total_disk_size,
+                    "last_capture_time": last_capture_time.isoformat() if last_capture_time else None,
+                    "time_since_last_capture": time_since_last,
+                    "capture_success_rate": round(success_rate, 1)
+                },
+                "last_updated": now.isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting enhanced metrics: {e}")
+            return {
+                "error": str(e),
+                "today": {"screenshot_count": 0, "text_captured": 0, "active_hours": 0},
+                "seven_day": {"total_screenshots": 0, "daily_average": 0, "trend": "error"},
+                "chromadb": {"total_documents": 0, "status": "error"},
+                "system": {"ocr_files_on_disk": 0, "disk_space_used": "0 MB"}
+            }
+    
+    async def _get_chroma_stats(self) -> Dict[str, Any]:
+        """Get ChromaDB statistics."""
+        try:
+            import chromadb
+            from chromadb.errors import ChromaError
+            import requests.exceptions
+            
+            # Try to connect to ChromaDB
+            try:
+                client = chromadb.HttpClient(host="localhost", port=8000)
+                
+                # Test connection
+                client.heartbeat()
+                
+                # Try to get the screen_ocr_history collection
+                try:
+                    collection = client.get_collection("screen_ocr_history")
+                    count = collection.count()
+                    
+                    # Get all collections
+                    all_collections = client.list_collections()
+                    
+                    return {
+                        "status": "connected",
+                        "total_documents": count,
+                        "collections": [{"name": c.name, "metadata": c.metadata if hasattr(c, 'metadata') else {}} for c in all_collections],
+                        "last_sync": datetime.now().isoformat()
+                    }
+                except Exception as col_error:
+                    logger.warning(f"Collection not found or error: {col_error}")
+                    # Collection doesn't exist or is empty
+                    all_collections = client.list_collections()
+                    return {
+                        "status": "connected",
+                        "total_documents": 0,
+                        "collections": [{"name": c.name, "metadata": c.metadata if hasattr(c, 'metadata') else {}} for c in all_collections],
+                        "last_sync": datetime.now().isoformat()
+                    }
+                    
+            except requests.exceptions.ConnectionError as conn_error:
+                logger.warning(f"ChromaDB server connection failed: {conn_error}")
+                return {
+                    "status": "unavailable",
+                    "total_documents": 0,
+                    "collections": [],
+                    "error": "ChromaDB server not running"
+                }
+            except Exception as e:
+                logger.warning(f"Could not get ChromaDB stats: {e}")
+                return {
+                    "status": "unavailable",
+                    "total_documents": 0,
+                    "collections": [],
+                    "error": str(e)
+                }
+                
+        except Exception as e:
+            logger.error(f"Error getting ChromaDB stats: {e}")
+            return {
+                "status": "error",
+                "total_documents": 0,
+                "collections": [],
+                "error": str(e)
+            }
 
 
 # Global service instance
@@ -534,4 +766,15 @@ async def get_file_count():
         })
     except Exception as e:
         logger.error(f"Error in get_file_count endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/enhanced-metrics")
+async def get_enhanced_metrics():
+    """Get enhanced metrics for dashboard monitoring and debugging."""
+    try:
+        metrics = await ocr_service.get_enhanced_metrics()
+        return JSONResponse(content=metrics)
+    except Exception as e:
+        logger.error(f"Error in get_enhanced_metrics endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))
