@@ -538,6 +538,135 @@ ngrok http 8082 --cidr-allow="192.168.1.0/24"
 
 **📖 Full Documentation**: See `workspace/ngrok-for-mcp-server.md` for complete setup instructions, security considerations, and advanced configurations.
 
+## 🔌 Using Flow MCP with Cursor
+
+Flow's MCP server can be used as an extension in Cursor, allowing you to search your screen history and audio transcripts directly from Cursor's AI.
+
+### Setup for Cursor
+
+1. **Start the HTTP MCP Server**:
+```bash
+cd mcp-server
+source .venv/bin/activate  # Activate the virtual environment
+python http_server.py --port 8082
+```
+
+2. **Expose via ngrok** (for remote access):
+```bash
+# In another terminal
+ngrok http 8082
+```
+
+You'll get an ngrok URL like: `https://abc123.ngrok-free.app`
+
+3. **Verify the server is running**:
+```bash
+curl https://your-ngrok-url.ngrok-free.app
+```
+
+You should see:
+```json
+{
+  "name": "Flow MCP HTTP Server",
+  "version": "1.0.0",
+  "status": "running",
+  "endpoints": {
+    "list_tools": "/tools/list",
+    "call_tool": "/tools/call"
+  }
+}
+```
+
+4. **Configure Cursor**:
+
+Open Cursor Settings → Features → MCP (or edit `.cursor/config.json`) and add:
+
+```json
+{
+  "mcpServers": {
+    "flow": {
+      "url": "https://your-ngrok-url.ngrok-free.app",
+      "transport": "http"
+    }
+  }
+}
+```
+
+Replace `your-ngrok-url.ngrok-free.app` with your actual ngrok URL.
+
+5. **Restart Cursor** to load the MCP extension.
+
+### Using Flow in Cursor
+
+Once configured, you can use Flow tools directly in Cursor:
+
+**Search your screen history:**
+```
+@flow search for "github repository" from last week
+```
+
+**Search only audio transcripts:**
+```
+@flow search for "meeting discussion" in audio data_type
+```
+
+**Search only OCR:**
+```
+@flow search for "error message" in ocr data_type
+```
+
+**Get statistics:**
+```
+@flow show me system statistics
+```
+
+**Activity graph:**
+```
+@flow generate activity graph for last 7 days
+```
+
+### Available Tools in Cursor
+
+All 7 Flow MCP tools are available:
+- 🔍 `search-screenshots` - Search OCR and audio data
+- ℹ️ `what-can-i-do` - Get Flow capabilities
+- 📊 `get-stats` - System statistics
+- 📈 `activity-graph` - Activity timeline
+- 📅 `time-range-summary` - Time range data
+- ▶️ `start-flow` - Start Flow system
+- ⏹️ `stop-flow` - Stop Flow system
+
+### Local vs Remote Access
+
+**Local Only (no ngrok):**
+- Faster, lower latency
+- More secure
+- Use: `http://localhost:8082`
+- Only accessible from your machine
+
+**With ngrok (remote):**
+- Access from anywhere
+- Share with team members
+- Use: `https://your-ngrok-url.ngrok-free.app`
+- Requires internet connection
+
+### Troubleshooting
+
+**Cursor can't connect:**
+- Verify the HTTP server is running: `curl http://localhost:8082`
+- Check ngrok is forwarding: `curl https://your-ngrok-url.ngrok-free.app`
+- Ensure URL in Cursor config matches your ngrok URL
+
+**Tools not appearing:**
+- Restart Cursor after adding MCP configuration
+- Check Cursor's MCP settings panel
+- Verify HTTP server shows "status": "running"
+
+**Search returns no results:**
+- Ensure ChromaDB is running: `curl http://localhost:8000/api/v1/heartbeat`
+- Check OCR data exists: `ls refinery/data/ocr/*.json`
+- Verify MCP server can access ChromaDB (check logs)
+
 ## 🔧 Configuration
 
 ### Environment Variables
