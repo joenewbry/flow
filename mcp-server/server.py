@@ -110,13 +110,13 @@ class FlowMCPServer:
         # Search Screenshots
         tools.append(Tool(
             name="search-screenshots",
-            description="Search OCR data from screenshots with optional date range parameters",
+            description="Search OCR and audio data with optional filtering by data type. Searches both screen OCR text and audio transcripts by default.",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "Search query for the OCR text content",
+                        "description": "Search query for the OCR text or audio transcript content",
                     },
                     "start_date": {
                         "type": "string",
@@ -130,6 +130,11 @@ class FlowMCPServer:
                         "type": "integer",
                         "description": "Maximum number of results to return (default: 10)",
                         "default": 10,
+                    },
+                    "data_type": {
+                        "type": "string",
+                        "enum": ["ocr", "audio"],
+                        "description": "Filter by data type: 'ocr' for screen OCR only, 'audio' for audio transcripts only. Omit to search both types (default).",
                     },
                 },
                 "required": ["query"],
@@ -343,7 +348,8 @@ class FlowMCPServer:
                     query=arguments["query"],
                     start_date=arguments.get("start_date"),
                     end_date=arguments.get("end_date"),
-                    limit=arguments.get("limit", 10)
+                    limit=arguments.get("limit", 10),
+                    data_type=arguments.get("data_type")
                 )
             elif name == "what-can-i-do":
                 return await tool.what_can_i_do()

@@ -16,14 +16,48 @@ logger = logging.getLogger(__name__)
 
 
 class SearchTool:
-    """Tool for searching OCR data."""
+    """Tool for searching OCR and audio data."""
     
     def __init__(self, workspace_root: Path):
         self.workspace_root = workspace_root
         self.ocr_data_dir = workspace_root / "refinery" / "data" / "ocr"
+        self.chroma_client = None
+        self.collection = None
         
         # Ensure OCR data directory exists
         self.ocr_data_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Try to initialize ChromaDB client
+        self._init_chroma()
+    
+    def _init_chroma(self):
+        """Initialize ChromaDB client."""
+        try:
+            import chromadb
+            
+            # Try HTTP client first (server running)
+            try:
+                self.chroma_client = chromadb.HttpClient(host="localhost", port=8000)
+                self.chroma_client.heartbeat()
+                logger.info("Connected to ChromaDB server at localhost:8000")
+            except:
+                # Fall back to persistent client
+                chroma_path = self.workspace_root / "refinery" / "chroma"
+                self.chroma_client = chromadb.PersistentClient(path=str(chroma_path))
+                logger.info("Connected to ChromaDB using persistent client")
+            
+            # Try to get the collection
+            try:
+                self.collection = self.chroma_client.get_collection("screen_ocr_history")
+                logger.info("Connected to ChromaDB collection 'screen_ocr_history'")
+            except Exception as e:
+                logger.warning(f"ChromaDB collection not found: {e}")
+                self.collection = None
+                
+        except Exception as e:
+            logger.error(f"Failed to initialize ChromaDB: {e}")
+            self.chroma_client = None
+            self.collection = None
     
     def _parse_filename_timestamp(self, filename: str) -> Optional[datetime]:
         """Parse timestamp from OCR filename."""
@@ -100,15 +134,28 @@ class SearchTool:
         query: str,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
-        limit: int = 10
+        limit: int = 10,
+        data_type: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Search OCR data from screenshots."""
+        """
+        Search OCR and audio data.
+        
+        Args:
+            query: Search query
+            start_date: Optional start date (YYYY-MM-DD)
+            end_date: Optional end date (YYYY-MM-DD)
+            limit: Maximum results to return
+            data_type: Filter by type - "ocr", "audio", or None for both
+        """
         try:
-            logger.info(f"Searching screenshots: query='{query}', start_date={start_date}, end_date={end_date}, limit={limit}")
+            logger.info(f"Searching: query='{query}', start_date={start_date}, end_date={end_date}, limit={limit}, data_type={data_type}")
             
-            # Parse date filters
-            start_dt = None
-            end_dt = None
+            # Use ChromaDB vector search if available
+            if self.collection:
+                return await self._search_chromadb(query, start_date, end_date, limit, data_type)
+            else:
+                logger.warning("ChromaDB not available, falling back to file-based search")
+                return await self._search_files(query, start_date, end_date, limit)
             
             if start_date:
                 start_dt = datetime.fromisoformat(start_date + "T00:00:00")
@@ -155,11 +202,13 @@ class SearchTool:
                         results.append({
                             "timestamp": data.get("timestamp"),
                             "screen_name": data.get("screen_name"),
+                            "data_type": "ocr",  # File-based search only finds OCR data
                             "text_length": data.get("text_length", 0),
                             "word_count": data.get("word_count", 0),
                             "text_preview": preview,
                             "relevance": relevance,
-                            "match_count": relevance
+                            "match_count": relevance,
+                            "source": "file_based_search"
                         })
                 
                 except Exception as e:
@@ -176,6 +225,8 @@ class SearchTool:
                 "results": results,
                 "total_found": len(results),
                 "processed_files": processed,
+                "search_method": "file_based_text_search",
+                "data_type_filter": "ocr_only",  # File search only finds OCR
                 "date_range": {
                     "start_date": start_date,
                     "end_date": end_date
@@ -196,6 +247,101 @@ class SearchTool:
                 "results": [],
                 "total_found": 0
             }
+    
+    async def _search_chromadb(
+        self,
+        query: str,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        limit: int = 10,
+        data_type: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Search using ChromaDB vector search."""
+        try:
+            # Build where filter
+            where_filters = []
+            
+            # Add date filters
+            if start_date:
+                start_dt = datetime.fromisoformat(start_date + "T00:00:00")
+                where_filters.append({"timestamp": {"$gte": start_dt.isoformat()}})
+            if end_date:
+                end_dt = datetime.fromisoformat(end_date + "T23:59:59")
+                where_filters.append({"timestamp": {"$lte": end_dt.isoformat()}})
+            
+            # Add data_type filter
+            if data_type and data_type in ["ocr", "audio"]:
+                where_filters.append({"data_type": data_type})
+            
+            # Build final where clause
+            where_clause = None
+            if len(where_filters) > 1:
+                where_clause = {"$and": where_filters}
+            elif len(where_filters) == 1:
+                where_clause = where_filters[0]
+            
+            # Query ChromaDB
+            logger.info(f"ChromaDB query with where: {where_clause}")
+            query_results = self.collection.query(
+                query_texts=[query],
+                n_results=limit,
+                where=where_clause
+            )
+            
+            # Format results
+            results = []
+            if query_results and query_results["documents"] and query_results["documents"][0]:
+                for i in range(len(query_results["documents"][0])):
+                    doc = query_results["documents"][0][i]
+                    metadata = query_results["metadatas"][0][i] if query_results["metadatas"] else {}
+                    distance = query_results["distances"][0][i] if query_results["distances"] else 1.0
+                    
+                    # Convert distance to relevance (0-1, higher is better)
+                    relevance = max(0, 1 - distance)
+                    
+                    # Extract text preview from document or metadata
+                    text_preview = metadata.get("extracted_text", doc)[:200]
+                    
+                    results.append({
+                        "timestamp": metadata.get("timestamp", ""),
+                        "screen_name": metadata.get("screen_name", "N/A"),
+                        "data_type": metadata.get("data_type", "unknown"),  # Include data_type tag
+                        "text_length": metadata.get("text_length", 0),
+                        "word_count": metadata.get("word_count", 0),
+                        "text_preview": text_preview,
+                        "relevance": round(relevance, 3),
+                        "source": metadata.get("source", "unknown")
+                    })
+            
+            logger.info(f"ChromaDB search completed: {len(results)} results")
+            
+            return {
+                "query": query,
+                "results": results,
+                "total_found": len(results),
+                "search_method": "vector_search_chromadb",
+                "data_type_filter": data_type or "all",
+                "date_range": {
+                    "start_date": start_date,
+                    "end_date": end_date
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in ChromaDB search: {e}")
+            # Fall back to file-based search
+            return await self._search_files(query, start_date, end_date, limit)
+    
+    async def _search_files(
+        self,
+        query: str,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        limit: int = 10
+    ) -> Dict[str, Any]:
+        """Fallback file-based search (OCR files only)."""
+        try:
+            logger.info(f"File-based search (fallback): query='{query}'")
     
     def _create_preview(self, text: str, query: str, max_length: int = 200) -> str:
         """Create a preview of text with context around the search query."""

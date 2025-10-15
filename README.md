@@ -85,7 +85,16 @@ chmod +x start.sh
 cd ..
 ```
 
-### 5. Start the System
+### 5. Set up Audio Recording (Optional)
+```bash
+# Run the audio setup script
+./setup_audio_recorder.sh
+
+# Create .env file with your OpenAI API key
+echo "OPENAI_API_KEY=your-api-key-here" > .env
+```
+
+### 6. Start the System
 ```bash
 # Terminal 1: Start ChromaDB server
 cd refinery && source .venv/bin/activate && chroma run --host localhost --port 8000
@@ -98,10 +107,118 @@ cd dashboard && source .venv/bin/activate && python app.py
 
 # Terminal 4: Start MCP Server (for Claude Desktop)
 cd mcp-server && ./start.sh
+
+# Terminal 5 (Optional): Start Audio Recording
+./start_audio_background.sh
 ```
 
-### 6. Access Flow Dashboard
+### 7. Access Flow Dashboard
 Open your browser and navigate to: **http://localhost:8081**
+
+## 🎙️ Audio Recording & Transcription
+
+Flow includes an intelligent audio recording system that automatically captures, transcribes, and indexes audio (like Zoom calls, meetings, etc.) alongside your screen data.
+
+### How Audio Recording Works
+
+The audio system captures **ALL audio** on your computer using a **chunk-based processing approach**:
+
+1. **Dual Capture**: Records BOTH your microphone AND system audio (YouTube, Zoom, music, etc.)
+2. **Continuous Monitoring**: Listens for audio activity in the background
+3. **Smart Detection**: Automatically starts recording when audio is detected (above silence threshold)
+4. **Chunk Processing**: Breaks audio into 30-second chunks for efficient transcription
+5. **Real-time Transcription**: Uses OpenAI Whisper API to transcribe each chunk as it's captured
+6. **Markdown Storage**: Saves transcripts as searchable `.md` files in `refinery/data/audio/`
+7. **ChromaDB Integration**: Stores transcripts in the same `screen_ocr_history` collection as OCR data, tagged with `data_type: "audio"`
+
+**What Gets Captured:**
+- 🎤 Your voice through microphone
+- 🔊 System audio (YouTube, Zoom calls, music, all computer sounds)
+- 💬 Both sides of video calls
+- 🎵 Any audio playing on your computer
+
+### Audio Setup
+
+**Important**: To capture BOTH microphone and system audio, you need BlackHole.
+
+1. **Install BlackHole** (for system audio capture):
+```bash
+brew install blackhole-2ch
+```
+
+2. **Configure Audio Routing** (see detailed guide below):
+   - Open "Audio MIDI Setup"
+   - Create Multi-Output Device (Speakers + BlackHole)
+   - Set system output to this Multi-Output device
+
+3. **Install dependencies**:
+```bash
+./setup_audio_recorder.sh
+```
+
+4. **Add OpenAI API key** to `.env` file:
+```bash
+echo "OPENAI_API_KEY=sk-your-key-here" >> .env
+```
+
+5. **Start audio recording**:
+```bash
+./start_audio_background.sh
+```
+
+📖 **Full Setup Guide**: See `AUDIO_SETUP_GUIDE.md` for detailed instructions on capturing both microphone and system audio.
+
+### Audio Data Structure
+
+Each audio session creates:
+- **`.md` file**: Human-readable markdown transcript with timestamps
+- **`.json` file**: Structured metadata about the session
+- **`.wav` file**: Original audio recording (for backup)
+- **ChromaDB entries**: Searchable chunks stored with `data_type: "audio"` tag
+
+Example markdown transcript:
+```markdown
+# Audio Transcript: auto_20241015_143022
+
+**Session Start:** 2024-10-15T14:30:22
+
+---
+
+## [14:30:25]
+
+Welcome everyone to today's standup meeting...
+
+## [14:31:02]
+
+Let me share what I worked on yesterday...
+```
+
+### Audio vs OCR Data
+
+Both data types are stored in the same `screen_ocr_history` ChromaDB collection but tagged differently:
+
+- **OCR Data**: `data_type: "ocr"` - Screenshots with text extraction
+- **Audio Data**: `data_type: "audio"` - Audio transcripts from meetings/calls
+
+This allows you to:
+- Search both types together: "Find anything about the project deadline"
+- Filter by type: Search only audio with `where={"data_type": "audio"}`
+- Get complete context: See what was said AND what was on screen at any time
+
+### Requirements
+
+- **OpenAI API Key**: Required for Whisper API transcription (~$0.006/minute)
+- **ffmpeg**: For audio capture (auto-installed via Homebrew on macOS)
+- **BlackHole** (recommended): For capturing system audio - `brew install blackhole-2ch`
+- **ChromaDB**: Must be running for searchability (audio still saves locally if ChromaDB is down)
+
+**Without BlackHole**: Only microphone will be captured  
+**With BlackHole**: Both microphone AND system audio (YouTube, Zoom, etc.) will be captured
+
+### Audio Storage Location
+
+- **Files**: `refinery/data/audio/` (markdown and JSON files)
+- **ChromaDB**: `screen_ocr_history` collection (tagged with `data_type: "audio"`)
 
 ## 🌐 Flow Dashboard
 
@@ -296,32 +413,47 @@ Example: "Stop the Flow system"
 
 ### Data Flow
 
+#### Screen OCR Pipeline:
 1. **Screen Capture**: Automatic screenshots every 60 seconds across all monitors
 2. **OCR Processing**: Tesseract extracts text from screenshots in background threads
 3. **Data Storage**: OCR results saved as JSON files with timestamp and screen info
-4. **Vector Indexing**: ChromaDB creates semantic embeddings for intelligent search
+4. **Vector Indexing**: ChromaDB creates semantic embeddings tagged with `data_type: "ocr"`
 5. **Search & Retrieval**: MCP server processes queries and returns relevant results
-6. **Dashboard Monitoring**: Real-time visualization and system control
+
+#### Audio Transcription Pipeline:
+1. **Audio Detection**: Monitors system audio for activity (Zoom, meetings, etc.)
+2. **Chunk Recording**: Captures audio in 30-second chunks when detected
+3. **OpenAI Transcription**: Real-time transcription using Whisper API
+4. **Markdown Storage**: Saves as readable `.md` files in `refinery/data/audio/`
+5. **Vector Indexing**: ChromaDB stores transcripts tagged with `data_type: "audio"`
+6. **Unified Search**: Audio and OCR data searchable together in same collection
 
 ### File Structure
 
 ```
 flow/
-├── dashboard/                 # Web dashboard
-│   ├── app.py                # FastAPI application
-│   ├── lib/                  # Core libraries
-│   ├── api/                  # API endpoints
-│   ├── templates/            # HTML templates
-│   └── static/               # CSS, JS, assets
-├── mcp-server/               # Python MCP server
-│   ├── server.py            # Main MCP server
-│   ├── tools/               # MCP tool implementations
-│   └── start.sh             # Startup script
-├── refinery/                 # Screen capture system
-│   ├── run.py               # Main capture script
-│   ├── lib/                 # OCR and ChromaDB logic
-│   └── data/                # Captured data storage
-└── README.md                # This file
+├── dashboard/                      # Web dashboard
+│   ├── app.py                     # FastAPI application
+│   ├── lib/                       # Core libraries
+│   ├── api/                       # API endpoints
+│   ├── templates/                 # HTML templates
+│   └── static/                    # CSS, JS, assets
+├── mcp-server/                    # Python MCP server
+│   ├── server.py                  # Main MCP server
+│   ├── tools/                     # MCP tool implementations
+│   └── start.sh                   # Startup script
+├── refinery/                      # Screen capture system
+│   ├── run.py                     # Main capture script
+│   ├── lib/                       # OCR and ChromaDB logic
+│   └── data/                      # Captured data storage
+│       ├── ocr/                   # OCR JSON files (tagged: data_type="ocr")
+│       └── audio/                 # Audio transcripts (tagged: data_type="audio")
+│           ├── *.md              # Markdown transcripts
+│           ├── *.json            # Session metadata
+│           └── *.wav             # Audio recordings
+├── audio_background_recorder.py  # Audio recording service
+├── start_audio_background.sh     # Audio service startup
+└── README.md                      # This file
 ```
 
 ## 🌐 Team Collaboration with Ngrok
@@ -413,6 +545,9 @@ ngrok http 8082 --cidr-allow="192.168.1.0/24"
 Create a `.env` file in the project root:
 
 ```env
+# OpenAI Configuration (required for audio transcription)
+OPENAI_API_KEY=sk-your-api-key-here
+
 # ChromaDB Configuration
 CHROMA_HOST=localhost
 CHROMA_PORT=8000
@@ -465,6 +600,7 @@ Flow uses **vector-based semantic search**, which means:
 - "Show me the GitHub repository I was looking at yesterday"
 - "What was that error message about database connection?"
 - "Find the meeting notes from the project review"
+- "What did we discuss in the Zoom call yesterday afternoon?" (audio)
 
 ❌ **Less Effective Queries:**
 - "Find the exact word 'banana' on my screen"
@@ -476,6 +612,30 @@ Flow uses **vector-based semantic search**, which means:
 2. **Include context**: Mention timeframes, people, or topics
 3. **Be specific about intent**: "email about X" vs "document containing X"
 4. **Use date ranges**: Narrow down searches to specific periods
+5. **Filter by type**: Use metadata filters to search only OCR or audio data
+
+### Filtering Audio vs OCR Data
+
+You can filter searches by data type in the ChromaDB collection:
+
+```python
+# Search only audio transcripts
+results = collection.query(
+    query_texts=["project discussion"],
+    where={"data_type": "audio"}
+)
+
+# Search only screen OCR
+results = collection.query(
+    query_texts=["github repository"],
+    where={"data_type": "ocr"}
+)
+
+# Search both (default - no filter)
+results = collection.query(
+    query_texts=["project deadline"]
+)
+```
 
 ## 🛠️ Troubleshooting
 
@@ -609,15 +769,19 @@ Your page is now accessible at: `https://your-ngrok-url.ngrok.io/page/ui-progres
 ## 🎯 Roadmap
 
 ### Planned Features
-- [ ] Audio recording with speech-to-text integration
+- [x] Audio recording with speech-to-text integration
 - [x] Sharable pages with markdown export
 - [x] Team collaboration via ngrok
 - [ ] Standup update automation tool
 - [ ] Mobile app for remote monitoring
 - [ ] Advanced analytics and insights
 - [ ] API for third-party integrations
+- [ ] Speaker diarization for audio transcripts
 
 ### Recent Updates
+- ✅ **Audio recording and transcription** with OpenAI Whisper API
+- ✅ **Unified search** across audio and OCR data with type filtering
+- ✅ **Markdown storage** for audio transcripts in `refinery/data/audio/`
 - ✅ Complete Python MCP server migration
 - ✅ Team collaboration with ngrok and multi-instance support
 - ✅ Sharable webpage builder for search results

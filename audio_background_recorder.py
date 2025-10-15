@@ -3,6 +3,7 @@
 Background Audio Recording and Transcription Service
 Automatically detects and records system audio (like Zoom calls) and stores transcripts in ChromaDB.
 Designed to run as a background service alongside the Flow system.
+Uses OpenAI Whisper API for transcription and stores data as markdown files.
 """
 
 import os
@@ -18,11 +19,13 @@ from pathlib import Path
 import json
 import argparse
 from typing import Dict, Any, Optional
+import tempfile
 
 import numpy as np
-import whisper
+from openai import OpenAI
 import chromadb
 from chromadb.errors import ChromaError
+from dotenv import load_dotenv
 
 # Set up logging
 logging.basicConfig(
@@ -38,8 +41,7 @@ logger = logging.getLogger(__name__)
 
 class BackgroundAudioRecorder:
     def __init__(self, 
-                 output_dir="audio_sessions", 
-                 model_size="base", 
+                 output_dir="refinery/data/audio", 
                  chunk_duration=30,
                  silence_threshold=0.01,
                  min_recording_duration=10,
@@ -50,15 +52,17 @@ class BackgroundAudioRecorder:
         
         Args:
             output_dir: Directory to save audio and transcription files
-            model_size: Whisper model size (tiny, base, small, medium, large)
             chunk_duration: Duration in seconds for each audio chunk to transcribe
             silence_threshold: Audio level below which is considered silence
             min_recording_duration: Minimum duration to keep a recording
             chroma_host: ChromaDB host
             chroma_port: ChromaDB port
         """
+        # Load environment variables for OpenAI API key
+        load_dotenv()
+        
         self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(exist_ok=True)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
         
         self.chunk_duration = chunk_duration
         self.silence_threshold = silence_threshold
@@ -72,10 +76,13 @@ class BackgroundAudioRecorder:
         self.chroma_port = chroma_port
         self.chroma_client = None
         
-        # Load Whisper model
-        logger.info(f"Loading Whisper model ({model_size})...")
-        self.whisper_model = whisper.load_model(model_size)
-        logger.info("Whisper model loaded successfully!")
+        # Initialize OpenAI client
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY not found in .env file")
+        
+        self.openai_client = OpenAI(api_key=api_key)
+        logger.info("OpenAI client initialized successfully!")
         
         # Session info
         self.current_session = None
@@ -98,12 +105,12 @@ class BackgroundAudioRecorder:
             heartbeat = self.chroma_client.heartbeat()
             logger.info(f"ChromaDB connected to {self.chroma_host}:{self.chroma_port}")
             
-            # Get or create audio collection
-            self.audio_collection = self.chroma_client.get_or_create_collection(
-                name="audio_transcripts",
-                metadata={"description": "Audio transcription data from background recording"}
+            # Get or create the same collection as OCR data
+            self.collection = self.chroma_client.get_or_create_collection(
+                name="screen_ocr_history",
+                metadata={"description": "Screen OCR and audio transcript data"}
             )
-            logger.info("Audio collection initialized in ChromaDB")
+            logger.info("Using screen_ocr_history collection in ChromaDB")
             
         except Exception as e:
             logger.warning(f"ChromaDB connection failed: {e}")
@@ -111,26 +118,31 @@ class BackgroundAudioRecorder:
             self.chroma_client = None
     
     def detect_system_audio_method(self):
-        """Detect the best method to capture system audio on macOS."""
+        """Detect the best method to capture both microphone and system audio on macOS."""
         try:
             # Check if BlackHole is installed (recommended virtual audio driver)
             result = subprocess.run(['system_profiler', 'SPAudioDataType'], 
                                   capture_output=True, text=True)
             if 'BlackHole' in result.stdout:
                 logger.info("BlackHole virtual audio driver detected")
+                logger.info("Will capture BOTH microphone and system audio (YouTube, Zoom, etc.)")
                 return "blackhole"
             
             # Check if SoundFlower is available
             if 'Soundflower' in result.stdout:
                 logger.info("Soundflower virtual audio driver detected")
+                logger.info("Will capture BOTH microphone and system audio")
                 return "soundflower"
             
-            # Fall back to using ffmpeg with screen capture audio
+            # Fall back to using ffmpeg - microphone only without BlackHole
             if subprocess.run(['which', 'ffmpeg'], capture_output=True).returncode == 0:
-                logger.info("Using ffmpeg for system audio capture")
+                logger.warning("Using ffmpeg for microphone capture only")
+                logger.warning("To also capture system audio (YouTube, Zoom, etc.), install BlackHole:")
+                logger.warning("  brew install blackhole-2ch")
+                logger.warning("  Then set up Multi-Output Device in Audio MIDI Setup")
                 return "ffmpeg"
             
-            logger.warning("No suitable system audio capture method found")
+            logger.warning("No suitable audio capture method found")
             return None
             
         except Exception as e:
@@ -138,31 +150,67 @@ class BackgroundAudioRecorder:
             return None
     
     def start_system_audio_capture(self):
-        """Start capturing system audio using the best available method."""
+        """Start capturing ALL audio (microphone + system audio) using the best available method."""
         method = self.detect_system_audio_method()
         
         if method == "ffmpeg":
+            logger.info("Capturing microphone only (no BlackHole detected)")
             return self._start_ffmpeg_capture()
         elif method in ["blackhole", "soundflower"]:
+            logger.info("Capturing BOTH microphone and system audio")
             return self._start_virtual_driver_capture(method)
         else:
-            logger.error("No system audio capture method available")
-            logger.info("Please install BlackHole (https://github.com/ExistentialAudio/BlackHole) for system audio capture")
+            logger.error("No audio capture method available")
+            logger.info("Install ffmpeg: brew install ffmpeg")
+            logger.info("For complete audio capture, also install BlackHole:")
+            logger.info("  brew install blackhole-2ch")
             return None
     
     def _start_ffmpeg_capture(self):
-        """Start audio capture using ffmpeg."""
+        """Start audio capture using ffmpeg - captures BOTH microphone and system audio."""
         try:
-            # Use ffmpeg to capture system audio
+            # List available devices first for logging
+            list_cmd = ['ffmpeg', '-f', 'avfoundation', '-list_devices', 'true', '-i', '']
+            list_result = subprocess.run(list_cmd, capture_output=True, text=True)
+            logger.debug(f"Available audio devices:\n{list_result.stderr}")
+            
+            # Capture both microphone (audio input) and system audio
+            # Format: -i ":microphone_index" for mic, -i ":system_audio_index" for system
+            # We'll use :0 for default microphone and try to detect system audio
+            # 
+            # For macOS with BlackHole or similar:
+            # - Input device 0 is usually microphone
+            # - You need BlackHole or similar for system audio capture
+            #
+            # This command captures microphone. For system audio, user needs BlackHole.
+            # We'll create a multi-input setup that mixes both sources
+            
             cmd = [
                 'ffmpeg',
                 '-f', 'avfoundation',
-                '-i', ':0',  # System audio
+                # Capture both audio input (microphone at :0) and system audio
+                # Format is "video_device:audio_device"
+                # ":0" means no video, audio device 0 (microphone)
+                # We'll use a more complex setup to capture multiple audio sources
+                '-i', ':0',  # Microphone input
+                # Note: To also capture system audio, you'll need BlackHole installed
+                # and this will be mixed in a more advanced setup below
                 '-ar', '44100',
                 '-ac', '1',  # Mono
                 '-f', 'wav',
                 '-'  # Output to stdout
             ]
+            
+            # Check if we should try to capture system audio too
+            # This requires BlackHole or Soundflower to be set up
+            if self._has_blackhole_device():
+                logger.info("BlackHole detected - will attempt to capture both mic and system audio")
+                # Use a more complex ffmpeg command to mix both sources
+                cmd = self._build_multi_source_command()
+            else:
+                logger.warning("BlackHole not detected - capturing microphone only")
+                logger.info("To capture system audio, install BlackHole: brew install blackhole-2ch")
+                logger.info("Then create a Multi-Output Device in Audio MIDI Setup")
             
             process = subprocess.Popen(
                 cmd,
@@ -171,17 +219,50 @@ class BackgroundAudioRecorder:
                 bufsize=0
             )
             
-            logger.info("Started ffmpeg system audio capture")
+            logger.info("Started ffmpeg audio capture (microphone + system audio if available)")
             return process
             
         except Exception as e:
             logger.error(f"Failed to start ffmpeg capture: {e}")
             return None
     
+    def _has_blackhole_device(self):
+        """Check if BlackHole virtual audio device is installed."""
+        try:
+            result = subprocess.run(
+                ['ffmpeg', '-f', 'avfoundation', '-list_devices', 'true', '-i', ''],
+                capture_output=True,
+                text=True
+            )
+            # ffmpeg outputs device list to stderr, not stdout
+            output = (result.stdout + result.stderr).lower()
+            return 'blackhole' in output
+        except Exception as e:
+            logger.debug(f"Error checking for BlackHole: {e}")
+            return False
+    
+    def _build_multi_source_command(self):
+        """Build ffmpeg command to capture and mix microphone + system audio."""
+        # This captures from multiple audio sources and mixes them
+        # Input 0: Microphone (default audio input)
+        # Input 1: BlackHole (system audio routed through it)
+        return [
+            'ffmpeg',
+            '-f', 'avfoundation',
+            '-i', ':0',  # Microphone
+            '-f', 'avfoundation', 
+            '-i', ':BlackHole 2ch',  # System audio through BlackHole
+            '-filter_complex', '[0:a][1:a]amix=inputs=2:duration=longest',  # Mix both audio sources
+            '-ar', '44100',
+            '-ac', '1',  # Mono
+            '-f', 'wav',
+            '-'  # Output to stdout
+        ]
+    
     def _start_virtual_driver_capture(self, driver_name):
-        """Start audio capture using virtual audio driver."""
-        # This would require pyaudio setup with the virtual driver
-        # For now, fall back to ffmpeg
+        """Start audio capture using virtual audio driver to capture both mic and system audio."""
+        logger.info(f"Using {driver_name} to capture microphone + system audio")
+        # Use the multi-source ffmpeg command
         return self._start_ffmpeg_capture()
     
     def start_background_monitoring(self):
@@ -262,17 +343,13 @@ class BackgroundAudioRecorder:
         self.recording_start_time = datetime.now()
         session_id = f"auto_{self.recording_start_time.strftime('%Y%m%d_%H%M%S')}"
         
-        # Create session directory
-        session_dir = self.output_dir / session_id
-        session_dir.mkdir(exist_ok=True)
-        
+        # Files are saved directly in the audio data directory (no subdirectory per session)
         self.current_session = {
             "session_id": session_id,
             "start_time": self.recording_start_time.isoformat(),
-            "session_dir": session_dir,
-            "audio_file": session_dir / f"{session_id}.wav",
-            "transcript_file": session_dir / f"{session_id}_transcript.txt",
-            "json_file": session_dir / f"{session_id}_session.json",
+            "audio_file": self.output_dir / f"{session_id}.wav",
+            "markdown_file": self.output_dir / f"{session_id}.md",
+            "json_file": self.output_dir / f"{session_id}.json",
             "transcript": []
         }
         
@@ -335,7 +412,7 @@ class BackgroundAudioRecorder:
             logger.error(f"Error saving audio file: {e}")
     
     def _transcribe_audio(self):
-        """Transcribe audio chunks in a separate thread."""
+        """Transcribe audio chunks in a separate thread using OpenAI Whisper API."""
         logger.info("🤖 Transcription thread started...")
         
         while self.is_running or not self.audio_queue.empty():
@@ -352,27 +429,59 @@ class BackgroundAudioRecorder:
                 
                 logger.info(f"🔍 Transcribing chunk from {timestamp.strftime('%H:%M:%S')}...")
                 
-                # Transcribe with Whisper
-                result = self.whisper_model.transcribe(audio_np, fp16=False)
-                text = result["text"].strip()
+                # Save audio to temporary WAV file for OpenAI API
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_audio:
+                    import wave
+                    with wave.open(temp_audio.name, 'wb') as wf:
+                        wf.setnchannels(1)  # Mono
+                        wf.setsampwidth(2)  # 16-bit
+                        wf.setframerate(44100)
+                        wf.writeframes(chunk_audio)
+                    
+                    temp_path = temp_audio.name
                 
-                if text:
-                    # Add to session data
-                    transcript_entry = {
-                        "timestamp": timestamp.isoformat(),
-                        "text": text,
-                        "confidence": result.get("confidence", 0.0)
-                    }
-                    session["transcript"].append(transcript_entry)
+                # Transcribe with OpenAI Whisper API
+                try:
+                    with open(temp_path, 'rb') as audio_file:
+                        result = self.openai_client.audio.transcriptions.create(
+                            model="whisper-1",
+                            file=audio_file,
+                            response_format="verbose_json"
+                        )
                     
-                    # Write to transcript file
-                    with open(session['transcript_file'], 'a', encoding='utf-8') as f:
-                        f.write(f"[{timestamp.strftime('%H:%M:%S')}] {text}\n")
+                    text = result.text.strip()
                     
-                    # Store in ChromaDB
-                    self._store_in_chroma(transcript_entry, session)
-                    
-                    logger.info(f"📝 [{timestamp.strftime('%H:%M:%S')}] {text}")
+                    if text:
+                        # Add to session data
+                        transcript_entry = {
+                            "timestamp": timestamp.isoformat(),
+                            "text": text,
+                            "duration": result.duration if hasattr(result, 'duration') else 0.0
+                        }
+                        session["transcript"].append(transcript_entry)
+                        
+                        # Append to markdown file
+                        with open(session['markdown_file'], 'a', encoding='utf-8') as f:
+                            if len(session["transcript"]) == 1:
+                                # First entry - write header
+                                f.write(f"# Audio Transcript: {session['session_id']}\n\n")
+                                f.write(f"**Session Start:** {session['start_time']}\n\n")
+                                f.write("---\n\n")
+                            
+                            f.write(f"## [{timestamp.strftime('%H:%M:%S')}]\n\n")
+                            f.write(f"{text}\n\n")
+                        
+                        # Store in ChromaDB
+                        self._store_in_chroma(transcript_entry, session)
+                        
+                        logger.info(f"📝 [{timestamp.strftime('%H:%M:%S')}] {text}")
+                
+                finally:
+                    # Clean up temporary file
+                    try:
+                        os.unlink(temp_path)
+                    except:
+                        pass
                 
             except queue.Empty:
                 continue
@@ -381,7 +490,7 @@ class BackgroundAudioRecorder:
                 continue
     
     def _store_in_chroma(self, transcript_entry: Dict[str, Any], session: Dict[str, Any]):
-        """Store transcript in ChromaDB."""
+        """Store transcript in ChromaDB in the screen_ocr_history collection with 'audio' tag."""
         if not self.chroma_client:
             return
         
@@ -389,27 +498,28 @@ class BackgroundAudioRecorder:
             # Prepare content for embedding
             content = f"Audio transcript: {transcript_entry['text']}"
             
-            # Prepare metadata
+            # Prepare metadata with 'audio' data_type tag
             metadata = {
                 "timestamp": transcript_entry["timestamp"],
                 "session_id": session["session_id"],
-                "confidence": transcript_entry["confidence"],
                 "source": "background_audio_recording",
+                "data_type": "audio",  # Tag to differentiate from OCR
                 "task_category": "audio_transcript",
                 "text_length": len(transcript_entry['text']),
-                "word_count": len(transcript_entry['text'].split())
+                "word_count": len(transcript_entry['text'].split()),
+                "extracted_text": transcript_entry['text']
             }
             
-            # Store in ChromaDB
-            doc_id = f"{session['session_id']}_{transcript_entry['timestamp']}"
+            # Store in ChromaDB screen_ocr_history collection
+            doc_id = f"audio_{session['session_id']}_{transcript_entry['timestamp'].replace(':', '-').replace('.', '-')}"
             
-            self.audio_collection.add(
+            self.collection.add(
                 documents=[content],
                 metadatas=[metadata],
                 ids=[doc_id]
             )
             
-            logger.debug(f"Stored in ChromaDB: {doc_id}")
+            logger.debug(f"Stored in ChromaDB screen_ocr_history collection: {doc_id}")
             
         except Exception as e:
             logger.warning(f"ChromaDB storage failed: {e}")
@@ -457,11 +567,8 @@ def signal_handler(signum, frame):
 
 def main():
     parser = argparse.ArgumentParser(description="Background audio recording and transcription service")
-    parser.add_argument("--output-dir", default="audio_sessions", 
-                       help="Directory to save recordings (default: audio_sessions)")
-    parser.add_argument("--model", default="base", 
-                       choices=["tiny", "base", "small", "medium", "large"],
-                       help="Whisper model size (default: base)")
+    parser.add_argument("--output-dir", default="refinery/data/audio", 
+                       help="Directory to save recordings (default: refinery/data/audio)")
     parser.add_argument("--chunk-duration", type=int, default=30,
                        help="Duration in seconds for transcription chunks (default: 30)")
     parser.add_argument("--silence-threshold", type=float, default=0.01,
@@ -484,7 +591,6 @@ def main():
         global recorder
         recorder = BackgroundAudioRecorder(
             output_dir=args.output_dir,
-            model_size=args.model,
             chunk_duration=args.chunk_duration,
             silence_threshold=args.silence_threshold,
             min_recording_duration=args.min_duration,

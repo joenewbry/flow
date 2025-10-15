@@ -4,8 +4,11 @@
 # Core audio processing
 pyaudio>=0.2.11
 
-# AI transcription (already installed in your audio_env)
-openai-whisper>=20231117
+# OpenAI API for Whisper transcription
+openai>=1.0.0
+
+# Environment variable management
+python-dotenv>=1.0.0
 
 # Audio analysis and processing
 numpy>=1.21.0
@@ -17,7 +20,10 @@ chromadb>=0.4.0
 pathlib2>=2.3.7; python_version < '3.4'
 
 # Note: Make sure you have the following system dependencies:
-# macOS: brew install portaudio
-# Ubuntu/Debian: sudo apt-get install portaudio19-dev python3-pyaudio
+# macOS: brew install portaudio ffmpeg
+# Ubuntu/Debian: sudo apt-get install portaudio19-dev python3-pyaudio ffmpeg
 # Windows: Usually works out of the box with pip install pyaudio
+# 
+# IMPORTANT: You need an OpenAI API key in your .env file:
+# OPENAI_API_KEY=sk-your-api-key-here
 
