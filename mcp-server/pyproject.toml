@@ -13,6 +13,10 @@ dependencies = [
     "structlog>=23.2.0",
     "asyncio-mqtt>=0.16.2",
     "orjson>=3.9.12",
+    "markdown>=3.9",
+    "jinja2>=3.1.6",
+    "fastapi>=0.119.0",
+    "uvicorn>=0.37.0",
 ]
 
 [build-system]

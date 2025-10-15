@@ -1,4 +1,4 @@
-/* Flow Website Builder Styles */
+/* Flow Website Builder Styles - Inspired by BearBlog */
 :root {
     --primary-color: #2563eb;
     --secondary-color: #64748b;
@@ -6,6 +6,8 @@
     --text-color: #1e293b;
     --border-color: #e2e8f0;
     --code-background: #f8fafc;
+    --accent-color: #f59e0b;
+    --quote-border: #d1d5db;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -14,6 +16,7 @@
         --text-color: #f1f5f9;
         --border-color: #334155;
         --code-background: #1e293b;
+        --quote-border: #475569;
     }
 }
 
@@ -25,7 +28,7 @@
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    line-height: 1.6;
+    line-height: 1.75;
     color: var(--text-color);
     background-color: var(--background-color);
 }
@@ -34,6 +37,16 @@ body {
     max-width: 1200px;
     margin: 0 auto;
     padding: 0 20px;
+}
+
+/* Markdown content styling */
+main.container {
+    max-width: 800px;
+}
+
+.markdown-content {
+    max-width: min(100% - 2rem, 700px);
+    margin: 0 auto;
 }
 
 header {
@@ -62,52 +75,132 @@ main {
     padding: 2rem 0;
 }
 
+/* Markdown element spacing */
+.markdown-content > *:not(:first-child) {
+    margin-block-start: 1.5em;
+}
+
+/* Headings */
 main h1, main h2, main h3, main h4, main h5, main h6 {
-    margin: 1.5rem 0 1rem 0;
+    margin-block-start: 2em;
+    margin-block-end: 0.75em;
     line-height: 1.3;
+    font-weight: 600;
+    overflow-wrap: anywhere;
 }
 
+main h1 { font-size: 2em; }
+main h2 { font-size: 1.5em; }
+main h3 { font-size: 1.25em; }
+main h4 { font-size: 1.1em; }
+main h5, main h6 { font-size: 1em; }
+
+/* First heading shouldn't have extra margin */
+.markdown-content > h1:first-child,
+.markdown-content > h2:first-child,
+.markdown-content > h3:first-child {
+    margin-block-start: 0;
+}
+
+/* Paragraphs */
 main p {
-    margin: 1rem 0;
+    margin: 1em 0;
+    line-height: 1.75;
 }
 
-main img {
+/* Links */
+main a {
+    color: var(--primary-color);
+    text-decoration: none;
+    border-bottom: 1px solid var(--primary-color);
+}
+
+main a:hover {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+/* Lists */
+main ol, main ul {
+    margin-left: 1.5em;
+    margin-block: 1em;
+}
+
+main li {
+    margin: 0.5em 0;
+    overflow-wrap: anywhere;
+}
+
+main li > p {
+    margin: 0.25em 0;
+}
+
+/* Images */
+main img, main picture {
+    object-fit: scale-down;
     max-width: 100%;
     height: auto;
-    border-radius: 8px;
-    margin: 1rem 0;
+    border-radius: 4px;
+    margin: 1.5em auto;
+    display: block;
+}
+
+/* Code */
+main code {
+    background: var(--code-background);
+    padding: 0.2em 0.4em;
+    border-radius: 4px;
+    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    font-size: 0.9em;
+    color: var(--accent-color);
 }
 
 main pre {
     background: var(--code-background);
     border: 1px solid var(--border-color);
     border-radius: 4px;
-    padding: 1rem;
-    overflow-x: auto;
-    margin: 1rem 0;
-}
-
-main code {
-    background: var(--code-background);
-    padding: 0.2rem 0.4rem;
-    border-radius: 3px;
-    font-family: 'Monaco', 'Courier New', monospace;
-    font-size: 0.9em;
+    padding: 1em;
+    overflow: auto;
+    max-width: 100%;
+    margin: 1.5em 0;
+    tab-size: 2;
 }
 
 main pre code {
     background: transparent;
     padding: 0;
+    color: var(--text-color);
+    border-radius: 0;
 }
 
+/* Blockquotes */
+main blockquote {
+    border-inline-start: 3px solid var(--quote-border);
+    padding: 0.75em 1em 0.75em 1.25em;
+    border-radius: 0 0.5rem 0.5rem 0;
+    background-color: var(--code-background);
+    margin: 1.5em 0;
+}
+
+main blockquote footer {
+    margin-top: 0.5em;
+    font-style: italic;
+    color: var(--secondary-color);
+}
+
+/* Tables */
 main table {
-    width: 100%;
+    display: block;
+    max-width: 100%;
     border-collapse: collapse;
-    margin: 1rem 0;
+    border: 2px solid var(--border-color);
+    border-spacing: 0;
+    margin: 1.5em auto;
+    overflow: auto;
 }
 
 main th, main td {
-    padding: 0.75rem;
+    padding: 0.75em 1em;
     text-align: left;
     border: 1px solid var(--border-color);
 }
@@ -115,22 +208,18 @@ main th, main td {
 main th {
     background: var(--code-background);
     font-weight: 600;
+    padding: 0.875em 1em;
 }
 
-main a {
-    color: var(--primary-color);
-    text-decoration: none;
+main tbody tr:nth-child(odd) {
+    background-color: var(--code-background);
 }
 
-main a:hover {
-    text-decoration: underline;
-}
-
-main blockquote {
-    border-left: 4px solid var(--primary-color);
-    padding-left: 1rem;
-    margin: 1rem 0;
-    color: var(--secondary-color);
+/* Horizontal rule */
+main hr {
+    border: 0;
+    border-bottom: 1px solid var(--border-color);
+    margin: 2em 0;
 }
 
 footer {

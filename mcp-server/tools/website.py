@@ -296,16 +296,21 @@ footer {
             else:
                 html = self._create_simple_html(title, author, html_content)
             
-            # Save page
-            page_file = self.pages_dir / f"{safe_name}.html"
-            page_file.write_text(html)
+            # Save markdown source file
+            md_file = self.pages_dir / f"{safe_name}.md"
+            md_file.write_text(content)
+            
+            # Also save HTML for backward compatibility
+            html_file = self.pages_dir / f"{safe_name}.html"
+            html_file.write_text(html)
             
             return {
                 "success": True,
                 "page_name": safe_name,
-                "local_url": f"http://localhost:8084/page/{safe_name}",
-                "file_path": str(page_file),
-                "message": f"Page '{safe_name}' created successfully"
+                "local_url": f"http://localhost:8082/page/{safe_name}",
+                "md_file": str(md_file),
+                "html_file": str(html_file),
+                "message": f"Page '{safe_name}' created successfully (saved as .md and .html)"
             }
             
         except Exception as e:
@@ -372,7 +377,7 @@ footer {
                     "size": stat.st_size,
                     "created": datetime.fromtimestamp(stat.st_ctime).isoformat(),
                     "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
-                    "url": f"http://localhost:8084/page/{page_file.stem}"
+                    "url": f"http://localhost:8082/page/{page_file.stem}"
                 })
             
             return {
@@ -426,7 +431,7 @@ footer {
                     "error": f"Page '{safe_name}' not found"
                 }
             
-            local_url = f"http://localhost:8084/page/{safe_name}"
+            local_url = f"http://localhost:8082/page/{safe_name}"
             
             result = {
                 "success": True,
@@ -440,7 +445,7 @@ footer {
                 result["ngrok_url"] = f"{ngrok_url}/page/{safe_name}"
                 result["share_url"] = result["ngrok_url"]
             else:
-                result["message"] = "Start ngrok to get a public shareable URL: ngrok http 8084"
+                result["message"] = "Start ngrok to get a public shareable URL: ngrok http 8082"
             
             return result
             
