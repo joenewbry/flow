@@ -157,88 +157,6 @@ class SearchTool:
                 logger.warning("ChromaDB not available, falling back to file-based search")
                 return await self._search_files(query, start_date, end_date, limit)
             
-            if start_date:
-                start_dt = datetime.fromisoformat(start_date + "T00:00:00")
-            if end_date:
-                end_dt = datetime.fromisoformat(end_date + "T23:59:59")
-            
-            # Get OCR files
-            ocr_files = list(self.ocr_data_dir.glob("*.json"))
-            ocr_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)  # Most recent first
-            
-            results = []
-            processed = 0
-            
-            for file_path in ocr_files:
-                if len(results) >= limit:
-                    break
-                
-                try:
-                    # Check date filter using filename timestamp
-                    file_timestamp = self._parse_filename_timestamp(file_path.name)
-                    if file_timestamp:
-                        if start_dt and file_timestamp < start_dt:
-                            continue
-                        if end_dt and file_timestamp > end_dt:
-                            continue
-                    
-                    data = self._read_ocr_file(file_path)
-                    if not data:
-                        continue
-                    
-                    processed += 1
-                    
-                    # Simple text search (case-insensitive)
-                    text = data.get('text', '').lower()
-                    query_lower = query.lower()
-                    
-                    if query_lower in text:
-                        # Calculate relevance score
-                        relevance = text.count(query_lower)
-                        
-                        # Create text preview with context around matches
-                        preview = self._create_preview(text, query_lower, max_length=200)
-                        
-                        results.append({
-                            "timestamp": data.get("timestamp"),
-                            "screen_name": data.get("screen_name"),
-                            "data_type": "ocr",  # File-based search only finds OCR data
-                            "text_length": data.get("text_length", 0),
-                            "word_count": data.get("word_count", 0),
-                            "text_preview": preview,
-                            "relevance": relevance,
-                            "match_count": relevance,
-                            "source": "file_based_search"
-                        })
-                
-                except Exception as e:
-                    logger.debug(f"Error searching file {file_path}: {e}")
-                    continue
-            
-            # Sort by relevance (highest first)
-            results.sort(key=lambda x: x["relevance"], reverse=True)
-            
-            logger.info(f"Search completed: {len(results)} results from {processed} files processed")
-            
-            return {
-                "query": query,
-                "results": results,
-                "total_found": len(results),
-                "processed_files": processed,
-                "search_method": "file_based_text_search",
-                "data_type_filter": "ocr_only",  # File search only finds OCR
-                "date_range": {
-                    "start_date": start_date,
-                    "end_date": end_date
-                },
-                "search_summary": {
-                    "total_files_available": len(ocr_files),
-                    "files_processed": processed,
-                    "matches_found": len(results),
-                    "search_terms": [query]
-                }
-            }
-            
         except Exception as e:
             logger.error(f"Error searching OCR data: {e}")
             return {
@@ -342,6 +260,101 @@ class SearchTool:
         """Fallback file-based search (OCR files only)."""
         try:
             logger.info(f"File-based search (fallback): query='{query}'")
+            
+            # Parse date filters
+            start_dt = None
+            end_dt = None
+            
+            if start_date:
+                start_dt = datetime.fromisoformat(start_date + "T00:00:00")
+            if end_date:
+                end_dt = datetime.fromisoformat(end_date + "T23:59:59")
+            
+            # Get OCR files
+            ocr_files = list(self.ocr_data_dir.glob("*.json"))
+            ocr_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)  # Most recent first
+            
+            results = []
+            processed = 0
+            
+            for file_path in ocr_files:
+                if len(results) >= limit:
+                    break
+                
+                try:
+                    # Check date filter using filename timestamp
+                    file_timestamp = self._parse_filename_timestamp(file_path.name)
+                    if file_timestamp:
+                        if start_dt and file_timestamp < start_dt:
+                            continue
+                        if end_dt and file_timestamp > end_dt:
+                            continue
+                    
+                    data = self._read_ocr_file(file_path)
+                    if not data:
+                        continue
+                    
+                    processed += 1
+                    
+                    # Simple text search (case-insensitive)
+                    text = data.get('text', '').lower()
+                    query_lower = query.lower()
+                    
+                    if query_lower in text:
+                        # Calculate relevance score
+                        relevance = text.count(query_lower)
+                        
+                        # Create text preview with context around matches
+                        preview = self._create_preview(text, query_lower, max_length=200)
+                        
+                        results.append({
+                            "timestamp": data.get("timestamp"),
+                            "screen_name": data.get("screen_name"),
+                            "data_type": "ocr",  # File-based search only finds OCR data
+                            "text_length": data.get("text_length", 0),
+                            "word_count": data.get("word_count", 0),
+                            "text_preview": preview,
+                            "relevance": relevance,
+                            "match_count": relevance,
+                            "source": "file_based_search"
+                        })
+                
+                except Exception as e:
+                    logger.debug(f"Error searching file {file_path}: {e}")
+                    continue
+            
+            # Sort by relevance (highest first)
+            results.sort(key=lambda x: x["relevance"], reverse=True)
+            
+            logger.info(f"Search completed: {len(results)} results from {processed} files processed")
+            
+            return {
+                "query": query,
+                "results": results,
+                "total_found": len(results),
+                "processed_files": processed,
+                "search_method": "file_based_text_search",
+                "data_type_filter": "ocr_only",  # File search only finds OCR
+                "date_range": {
+                    "start_date": start_date,
+                    "end_date": end_date
+                },
+                "search_summary": {
+                    "total_files_available": len(ocr_files),
+                    "files_processed": processed,
+                    "matches_found": len(results),
+                    "search_terms": [query]
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Error searching OCR data: {e}")
+            return {
+                "error": str(e),
+                "query": query,
+                "results": [],
+                "total_found": 0
+            }
     
     def _create_preview(self, text: str, query: str, max_length: int = 200) -> str:
         """Create a preview of text with context around the search query."""
