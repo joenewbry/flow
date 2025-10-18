@@ -268,49 +268,41 @@ footer {
         include_search_results: bool = False,
         search_data: Optional[Dict] = None
     ) -> Dict[str, Any]:
-        """Create a new webpage with the specified content."""
+        """Create a new webpage with the specified content.
+        
+        Saves as markdown only - servers will render on-the-fly.
+        """
         try:
             # Sanitize page name
             safe_name = "".join(c if c.isalnum() or c in "-_" else "-" for c in page_name.lower())
             
-            # Convert markdown to HTML
-            html_content = self.md.convert(content)
-            
-            # If search results are included, add them to the content
-            if include_search_results and search_data:
-                html_content += self._format_search_results(search_data)
-            
-            # Render template
-            if self.jinja_env:
-                try:
-                    template = self.jinja_env.get_template("base.html")
-                    html = template.render(
-                        title=title,
-                        author=author,
-                        created_date=datetime.now().strftime("%Y-%m-%d %H:%M"),
-                        content=html_content
-                    )
-                except Exception as e:
-                    logger.warning(f"Template rendering failed: {e}, using simple HTML")
-                    html = self._create_simple_html(title, author, html_content)
+            # Prepend title as H1 if not already in content
+            if not content.strip().startswith("#"):
+                markdown_content = f"# {title}\n\n{content}"
             else:
-                html = self._create_simple_html(title, author, html_content)
+                markdown_content = content
             
-            # Save markdown source file
+            # If search results are included, append them as markdown
+            if include_search_results and search_data:
+                markdown_content += "\n\n---\n\n## Search Results\n\n"
+                results = search_data.get("results", [])
+                for result in results:
+                    timestamp = result.get('timestamp', 'N/A')
+                    text = result.get('text', '')
+                    markdown_content += f"### {timestamp}\n\n{text}\n\n"
+            
+            # Save markdown source file (server will render on-the-fly)
             md_file = self.pages_dir / f"{safe_name}.md"
-            md_file.write_text(content)
+            md_file.write_text(markdown_content)
             
-            # Also save HTML for backward compatibility
-            html_file = self.pages_dir / f"{safe_name}.html"
-            html_file.write_text(html)
+            logger.info(f"Created page '{safe_name}' as markdown at {md_file}")
             
             return {
                 "success": True,
                 "page_name": safe_name,
                 "local_url": f"http://localhost:8082/page/{safe_name}",
                 "md_file": str(md_file),
-                "html_file": str(html_file),
-                "message": f"Page '{safe_name}' created successfully (saved as .md and .html)"
+                "message": f"Page '{safe_name}' created successfully as markdown"
             }
             
         except Exception as e:
@@ -369,7 +361,7 @@ footer {
         """List all created pages."""
         try:
             pages = []
-            for page_file in self.pages_dir.glob("*.html"):
+            for page_file in self.pages_dir.glob("*.md"):
                 stat = page_file.stat()
                 pages.append({
                     "name": page_file.stem,
@@ -397,15 +389,15 @@ footer {
         """Delete a webpage."""
         try:
             safe_name = "".join(c if c.isalnum() or c in "-_" else "-" for c in page_name.lower())
-            page_file = self.pages_dir / f"{safe_name}.html"
+            md_file = self.pages_dir / f"{safe_name}.md"
             
-            if not page_file.exists():
+            if not md_file.exists():
                 return {
                     "success": False,
                     "error": f"Page '{safe_name}' not found"
                 }
             
-            page_file.unlink()
+            md_file.unlink()
             
             return {
                 "success": True,
@@ -423,9 +415,9 @@ footer {
         """Get the URL for a webpage."""
         try:
             safe_name = "".join(c if c.isalnum() or c in "-_" else "-" for c in page_name.lower())
-            page_file = self.pages_dir / f"{safe_name}.html"
+            md_file = self.pages_dir / f"{safe_name}.md"
             
-            if not page_file.exists():
+            if not md_file.exists():
                 return {
                     "success": False,
                     "error": f"Page '{safe_name}' not found"

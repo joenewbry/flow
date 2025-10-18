@@ -16,7 +16,7 @@ I use it with Claude.
 - Can you summarize what I worked on yesterday?
 - Please create onboarding documentation for the Centurion Project that I worked on in March 2025.
 
-** It's designed for Claude**
+**It's designed for Claude (or any other MCP frontend)**
 ![Example Usage](images/Flow%20Example.png)
 
 The entire codebase is in pre-release. And it's packed with a bunch of other interesting tools:
@@ -51,10 +51,10 @@ source .venv/bin/activate && python run.py
 
 ---
 
-## 🤖 Claude/Cursor Integration
+## 🤖 Claude Desktop Integration
 
-### Setup MCP Server for Claude Desktop or Cursor
-To search your screen history through Claude or Cursor, set up the MCP server:
+### Setup MCP Server for Claude Desktop
+To search your screen history through Claude Desktop, set up the MCP server:
 
 ```bash
 # Setup (from project root)
@@ -78,40 +78,61 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 }
 ```
 
-**Configure Cursor:**
-Add to Cursor's MCP settings with the same configuration format.
+**Then restart** Claude Desktop to load the MCP server.
 
-**Then restart** Claude Desktop or Cursor to load the MCP server.
+📖 **Configuration Guide:** See [Claude's MCP documentation](https://modelcontextprotocol.io/quickstart/user) for more details on setting up MCP servers.
+
+---
+
+## 🔍 Using Flow
+
+### MCP Tools in Claude Desktop
+
+Once Flow is running, you can query your screen history through Claude Desktop using natural language:
+
+**Example queries:**
+- "Find the GitHub repository I was looking at yesterday"
+- "What was I working on between 2pm and 5pm?"
+- "Show me screenshots containing 'project deadline'"
+- "Create a webpage summary of my work this week"
+
+**Available tools:**
+- 🔍 `search-screenshots` - Search OCR and audio data
+- 📊 `get-stats` - System statistics  
+- 📈 `activity-graph` - Activity timeline
+- 📅 `time-range-summary` - Time range data
+- ▶️ `start-flow` / ⏹️ `stop-flow` - System control
+- 🌐 `create-webpage` - Generate shareable pages
+
+### Search Capabilities
+
+Flow uses **semantic vector search** across all your data:
+
+**OCR Data** (`data_type: "ocr"`)
+- Screenshots captured every minute
+- Text extracted via Tesseract OCR
+- Stored in `refinery/data/ocr/*.json`
+
+**Audio Data** (`data_type: "audio"`) - if enabled
+- Continuous audio transcription
+- Microphone + system audio (with BlackHole)
+- Stored in `refinery/data/audio/*.md`
+
+Both are searchable together or separately:
+```python
+# Search everything
+"Find anything about the project deadline"
+
+# Search only audio
+search_screenshots(query="zoom meeting notes", data_type="audio")
+
+# Search only screens
+search_screenshots(query="github repository", data_type="ocr")
+```
 
 ---
 
 ## 🎛️ Optional Setup
-
-### 📊 Flow Dashboard (Web UI)
-Monitor and control Flow through a web interface.
-
-**Setup & Run:**
-```bash
-# Setup (from project root)
-cd dashboard
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-# Start Dashboard (Terminal 4)
-python app.py
-```
-
-**Access:** http://localhost:8081
-
-**Features:**
-- 📈 Real-time system monitoring
-- 🔍 Search interface with date filtering
-- 📊 OCR activity graphs
-- ⚙️ System configuration panel
-- 📝 Live system logs
-
----
 
 ### 🎙️ Audio Recording & Transcription
 Record and transcribe microphone + system audio (Zoom, YouTube, etc.).
@@ -157,7 +178,7 @@ echo "OPENAI_API_KEY=sk-your-key-here" > .env
 Create and share webpage summaries of your work publicly.
 
 #### Creating Webpages
-Use the MCP `create-webpage` tool in Claude/Cursor:
+Use the MCP `create-webpage` tool in Claude Desktop:
 ```
 "Create a webpage called 'weekly-update' with title 'Weekly Team Update' 
 containing my activity from this week"
@@ -167,7 +188,7 @@ Pages are saved as markdown in `website-builder/pages/` and rendered on-the-fly.
 
 ---
 
-#### Option 1: HTTP MCP Server (Recommended)
+#### HTTP MCP Server
 Serves both MCP tools AND webpages. Use this if you want remote MCP access too.
 
 **Start Server:**
@@ -186,231 +207,15 @@ ngrok http 8082
 - Local: `http://localhost:8082/page/my-summary`
 - Public: `https://abc123.ngrok-free.app/page/my-summary`
 
-**Bonus:** Update MCP config to use ngrok URL for remote Claude/Cursor access.
+**Bonus:** Update MCP config to use ngrok URL for remote Claude Desktop access.
 
 ---
-
-#### Option 2: Website Builder Server (Simpler)
-Just serves webpages, no MCP functionality. Use for simple page sharing.
-
-**Start Server:**
-```bash
-cd website-builder
-python3 server.py --port 8084
-```
-
-**Expose via Ngrok:**
-```bash
-ngrok http 8084
-```
-
-**Access Pages:**
-- Local: `http://localhost:8084/page/my-summary`
-- Public: `https://abc123.ngrok-free.app/page/my-summary`
-
-**Features:**
-- 📝 Renders markdown files on-the-fly
-- 🎨 Beautiful BearBlog-inspired styling
-- 📱 Responsive mobile design
-- 🌓 Automatic dark/light theme
-- 🔗 Simple, shareable URLs
-
-**Page Management:**
-```bash
-# List all pages
-curl http://localhost:8084/
-
-# View specific page
-open http://localhost:8084/page/my-summary
-
-# Pages are stored as .md files
-ls website-builder/pages/
-```
-
----
-
-## 🔍 Using Flow
-
-### MCP Tools in Claude/Cursor
-
-Once Flow is running, you can query your screen history through Claude Desktop or Cursor using natural language:
-
-**Example queries:**
-- "Find the GitHub repository I was looking at yesterday"
-- "What was I working on between 2pm and 5pm?"
-- "Show me screenshots containing 'project deadline'"
-- "Create a webpage summary of my work this week"
-
-**Available tools:**
-- 🔍 `search-screenshots` - Search OCR and audio data
-- 📊 `get-stats` - System statistics  
-- 📈 `activity-graph` - Activity timeline
-- 📅 `time-range-summary` - Time range data
-- ▶️ `start-flow` / ⏹️ `stop-flow` - System control
-- 🌐 `create-webpage` - Generate shareable pages
-
-### Search Capabilities
-
-Flow uses **semantic vector search** across all your data:
-
-**OCR Data** (`data_type: "ocr"`)
-- Screenshots captured every minute
-- Text extracted via Tesseract OCR
-- Stored in `refinery/data/ocr/*.json`
-
-**Audio Data** (`data_type: "audio"`) - if enabled
-- Continuous audio transcription
-- Microphone + system audio (with BlackHole)
-- Stored in `refinery/data/audio/*.md`
-
-Both are searchable together or separately:
-```python
-# Search everything
-"Find anything about the project deadline"
-
-# Search only audio
-search_screenshots(query="zoom meeting notes", data_type="audio")
-
-# Search only screens
-search_screenshots(query="github repository", data_type="ocr")
-```
-
----
-
-### Dashboard Features (if enabled)
-
-Access the Flow Dashboard at **http://localhost:8081**
-
-#### Dashboard Sections
-
-#### 📈 **System Status & Controls**
-- Real-time status of ChromaDB and screen capture processes
-- One-click start/stop controls for all system components
-- System health monitoring with automatic error recovery
-
-#### 📊 **OCR Activity Graphs**
-- Interactive timeline showing when screenshots were captured
-- Scrollable history with zoom and pan functionality
-- Visual gaps indicate periods of inactivity
-- Customizable time ranges (hourly, daily views)
-
-#### 🔍 **Search Interface**
-- Search through all captured OCR data
-- Date range filtering for targeted searches
-- Real-time results with relevance scoring
-- Export search results
-
-#### ⚙️ **System Configuration**
-- **Screen Capture Settings**: Interval, concurrent OCR processes, auto-start
-- **Data Management**: Retention policies, file size limits, compression
-- **Dashboard Settings**: Theme (light/dark/auto), refresh intervals, notifications
-- **Advanced Settings**: Log levels, telemetry, experimental features
-
-#### 📋 **System Logs**
-- Real-time log viewer with automatic refresh
-- Filter by log level (ERROR, WARNING, INFO, DEBUG)
-- Download logs for analysis
-- Clear logs and pagination support
-
-#### 🛠️ **MCP Tools Dashboard**
-- Overview of all 7 available MCP tools
-- Test individual tools and verify functionality
-- Usage examples and parameter documentation
-- Claude Desktop configuration instructions
-
----
-
-## 🤖 Advanced: Team Collaboration with Ngrok
-
-Enable team collaboration by exposing your Flow instance over ngrok, allowing multiple team members to query each other's screen history.
-
-**Team collaboration (with multi-instance setup):**
-> "Has John finished the UI designs for XYZ? Search his Flow for figma mentions."
-> "What was Jill working on yesterday afternoon between 2pm and 5pm?"
-> "Search both John's and my Flow for discussions about the API redesign."
-
-## 🏗️ Architecture
-
-### System Components
-
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Flow Dashboard │    │  Screen Capture │    │   ChromaDB      │
-│   (Port 8080)   │    │   (refinery/)   │    │ (Port 8000)     │
-│                 │    │                 │    │                 │
-│ • Web Interface │    │ • Auto Screenshots│   │ • Vector Store  │
-│ • System Control│    │ • OCR Processing │    │ • Search Engine │
-│ • Configuration │    │ • Data Storage   │    │ • Embeddings    │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         └───────────────────────┼───────────────────────┘
-                                 │
-                    ┌─────────────────┐
-                    │   MCP Server    │
-                    │  (Port varies)  │
-                    │                 │
-                    │ • Claude Tools  │
-                    │ • API Gateway   │
-                    │ • Search Logic  │
-                    └─────────────────┘
-                             │
-                    ┌─────────────────┐
-                    │ Claude Desktop  │
-                    │                 │
-                    │ • Natural Lang. │
-                    │ • Tool Calling  │
-                    │ • User Interface│
-                    └─────────────────┘
-```
-
-### Data Flow
-
-#### Screen OCR Pipeline:
-1. **Screen Capture**: Automatic screenshots every 60 seconds across all monitors
-2. **OCR Processing**: Tesseract extracts text from screenshots in background threads
-3. **Data Storage**: OCR results saved as JSON files with timestamp and screen info
-4. **Vector Indexing**: ChromaDB creates semantic embeddings tagged with `data_type: "ocr"`
-5. **Search & Retrieval**: MCP server processes queries and returns relevant results
-
-#### Audio Transcription Pipeline:
-1. **Audio Detection**: Monitors system audio for activity (Zoom, meetings, etc.)
-2. **Chunk Recording**: Captures audio in 30-second chunks when detected
-3. **OpenAI Transcription**: Real-time transcription using Whisper API
-4. **Markdown Storage**: Saves as readable `.md` files in `refinery/data/audio/`
-5. **Vector Indexing**: ChromaDB stores transcripts tagged with `data_type: "audio"`
-6. **Unified Search**: Audio and OCR data searchable together in same collection
-
-### File Structure
-
-```
-flow/
-├── dashboard/                      # Web dashboard
-│   ├── app.py                     # FastAPI application
-│   ├── lib/                       # Core libraries
-│   ├── api/                       # API endpoints
-│   ├── templates/                 # HTML templates
-│   └── static/                    # CSS, JS, assets
-├── mcp-server/                    # Python MCP server
-│   ├── server.py                  # Main MCP server
-│   ├── tools/                     # MCP tool implementations
-│   └── start.sh                   # Startup script
-├── refinery/                      # Screen capture system
-│   ├── run.py                     # Main capture script
-│   ├── lib/                       # OCR and ChromaDB logic
-│   └── data/                      # Captured data storage
-│       ├── ocr/                   # OCR JSON files (tagged: data_type="ocr")
-│       └── audio/                 # Audio transcripts (tagged: data_type="audio")
-│           ├── *.md              # Markdown transcripts
-│           ├── *.json            # Session metadata
-│           └── *.wav             # Audio recordings
-├── audio_background_recorder.py  # Audio recording service
-├── start_audio_background.sh     # Audio service startup
-└── README.md                      # This file
-```
 
 ## 🌐 Team Collaboration with Ngrok
 
 Flow supports team collaboration by exposing your MCP server via ngrok, allowing team members to query each other's screen history remotely.
+
+**⚠️ Note:** Team usage features are currently untested.
 
 ### Why Use This?
 
@@ -490,134 +295,141 @@ ngrok http 8082 --cidr-allow="192.168.1.0/24"
 
 **📖 Full Documentation**: See `workspace/ngrok-for-mcp-server.md` for complete setup instructions, security considerations, and advanced configurations.
 
-## 🔌 Using Flow MCP with Cursor
+---
 
-Flow's MCP server can be used as an extension in Cursor, allowing you to search your screen history and audio transcripts directly from Cursor's AI.
+## 🏗️ Architecture
 
-### Setup for Cursor
+### System Components
 
-1. **Start the HTTP MCP Server**:
-```bash
-cd mcp-server
-source .venv/bin/activate  # Activate the virtual environment
-python http_server.py --port 8082
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│  Screen Capture │    │   ChromaDB      │    │  Audio Recording│
+│   (refinery/)   │    │ (Port 8000)     │    │ (background)    │
+│                 │    │                 │    │                 │
+│ • Auto Screenshots   │ • Vector Store  │    │ • Microphone    │
+│ • OCR Processing│    │ • Search Engine │    │ • System Audio  │
+│ • Data Storage  │    │ • Embeddings    │    │ • Transcription │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                       │                       │
+         └───────────────────────┼───────────────────────┘
+                                 │
+                    ┌─────────────────┐
+                    │   MCP Server    │
+                    │  (Port varies)  │
+                    │                 │
+                    │ • Claude Tools  │
+                    │ • API Gateway   │
+                    │ • Search Logic  │
+                    │ • Web Pages     │
+                    └─────────────────┘
+                             │
+                    ┌─────────────────┐
+                    │ Claude Desktop  │
+                    │                 │
+                    │ • Natural Lang. │
+                    │ • Tool Calling  │
+                    │ • User Interface│
+                    └─────────────────┘
 ```
 
-2. **Expose via ngrok** (for remote access):
-```bash
-# In another terminal
-ngrok http 8082
+### Team Architecture Usage
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Team Collaboration                    │
+└─────────────────────────────────────────────────────────┘
+
+    User 1 (Joe)              User 2 (John)             User 3 (Jill)
+         │                         │                         │
+    ┌────▼────┐               ┌────▼────┐              ┌────▼────┐
+    │  Flow   │               │  Flow   │              │  Flow   │
+    │ Instance│               │ Instance│              │ Instance│
+    └────┬────┘               └────┬────┘              └────┬────┘
+         │                         │                         │
+    ┌────▼────┐               ┌────▼────┐              ┌────▼────┐
+    │ MCP     │               │ MCP     │              │ MCP     │
+    │ Server  │               │ Server  │              │ Server  │
+    │ (local) │               │ (ngrok) │              │ (ngrok) │
+    └────┬────┘               └────┬────┘              └────┬────┘
+         │                         │                         │
+         │         https://john    │    https://jill         │
+         │         -abc.ngrok.io   │    -def.ngrok.io        │
+         │                         │                         │
+         └─────────────────────────┼─────────────────────────┘
+                                   │
+                          ┌────────▼────────┐
+                          │  Multi-Instance │
+                          │  MCP Client     │
+                          └────────┬────────┘
+                                   │
+                          ┌────────▼────────┐
+                          │ Claude Desktop  │
+                          │                 │
+                          │ joe-search-*    │
+                          │ john-search-*   │
+                          │ jill-search-*   │
+                          └─────────────────┘
 ```
 
-You'll get an ngrok URL like: `https://abc123.ngrok-free.app`
+**Note:** Team collaboration features are untested. Use with caution in production environments.
 
-3. **Verify the server is running**:
-```bash
-curl https://your-ngrok-url.ngrok-free.app
+### Data Flow
+
+#### Screen OCR Pipeline:
+1. **Screen Capture**: Automatic screenshots every 60 seconds across all monitors
+2. **OCR Processing**: Tesseract extracts text from screenshots in background threads
+3. **Data Storage**: OCR results saved as JSON files with timestamp and screen info
+4. **Vector Indexing**: ChromaDB creates semantic embeddings tagged with `data_type: "ocr"`
+5. **Search & Retrieval**: MCP server processes queries and returns relevant results
+
+#### Audio Transcription Pipeline:
+1. **Audio Detection**: Monitors system audio for activity (Zoom, meetings, etc.)
+2. **Chunk Recording**: Captures audio in 30-second chunks when detected
+3. **OpenAI Transcription**: Real-time transcription using Whisper API
+4. **Markdown Storage**: Saves as readable `.md` files in `refinery/data/audio/`
+5. **Vector Indexing**: ChromaDB stores transcripts tagged with `data_type: "audio"`
+6. **Unified Search**: Audio and OCR data searchable together in same collection
+
+#### Website Creation Pipeline:
+1. **Content Generation**: Use `create-webpage` MCP tool to generate markdown pages
+2. **Page Storage**: Markdown files saved in `website-builder/pages/`
+3. **HTTP Serving**: MCP HTTP server renders pages on-the-fly
+4. **Public Sharing**: Expose via ngrok for team access
+5. **Dynamic Updates**: Edit markdown files to update pages instantly
+
+### File Structure
+
 ```
-
-You should see:
-```json
-{
-  "name": "Flow MCP HTTP Server",
-  "version": "1.0.0",
-  "status": "running",
-  "endpoints": {
-    "list_tools": "/tools/list",
-    "call_tool": "/tools/call"
-  }
-}
+flow/
+├── dashboard/                      # Web dashboard
+│   ├── app.py                     # FastAPI application
+│   ├── lib/                       # Core libraries
+│   ├── api/                       # API endpoints
+│   ├── templates/                 # HTML templates
+│   └── static/                    # CSS, JS, assets
+├── mcp-server/                    # Python MCP server
+│   ├── server.py                  # Main MCP server
+│   ├── http_server.py             # HTTP MCP server with web pages
+│   ├── multi_instance_client.py   # Multi-instance team client
+│   ├── tools/                     # MCP tool implementations
+│   └── start.sh                   # Startup script
+├── refinery/                      # Screen capture system
+│   ├── run.py                     # Main capture script
+│   ├── lib/                       # OCR and ChromaDB logic
+│   └── data/                      # Captured data storage
+│       ├── ocr/                   # OCR JSON files (tagged: data_type="ocr")
+│       └── audio/                 # Audio transcripts (tagged: data_type="audio")
+│           ├── *.md              # Markdown transcripts
+│           ├── *.json            # Session metadata
+│           └── *.wav             # Audio recordings
+├── website-builder/               # Website builder
+│   ├── server.py                  # Web server
+│   ├── pages/                     # Markdown pages
+│   └── templates/                 # HTML templates
+├── audio_background_recorder.py  # Audio recording service
+├── start_audio_background.sh     # Audio service startup
+└── README.md                      # This file
 ```
-
-4. **Configure Cursor**:
-
-Open Cursor Settings → Features → MCP (or edit `.cursor/config.json`) and add:
-
-```json
-{
-  "mcpServers": {
-    "flow": {
-      "url": "https://your-ngrok-url.ngrok-free.app",
-      "transport": "http"
-    }
-  }
-}
-```
-
-Replace `your-ngrok-url.ngrok-free.app` with your actual ngrok URL.
-
-5. **Restart Cursor** to load the MCP extension.
-
-### Using Flow in Cursor
-
-Once configured, you can use Flow tools directly in Cursor:
-
-**Search your screen history:**
-```
-@flow search for "github repository" from last week
-```
-
-**Search only audio transcripts:**
-```
-@flow search for "meeting discussion" in audio data_type
-```
-
-**Search only OCR:**
-```
-@flow search for "error message" in ocr data_type
-```
-
-**Get statistics:**
-```
-@flow show me system statistics
-```
-
-**Activity graph:**
-```
-@flow generate activity graph for last 7 days
-```
-
-### Available Tools in Cursor
-
-All 7 Flow MCP tools are available:
-- 🔍 `search-screenshots` - Search OCR and audio data
-- ℹ️ `what-can-i-do` - Get Flow capabilities
-- 📊 `get-stats` - System statistics
-- 📈 `activity-graph` - Activity timeline
-- 📅 `time-range-summary` - Time range data
-- ▶️ `start-flow` - Start Flow system
-- ⏹️ `stop-flow` - Stop Flow system
-
-### Local vs Remote Access
-
-**Local Only (no ngrok):**
-- Faster, lower latency
-- More secure
-- Use: `http://localhost:8082`
-- Only accessible from your machine
-
-**With ngrok (remote):**
-- Access from anywhere
-- Share with team members
-- Use: `https://your-ngrok-url.ngrok-free.app`
-- Requires internet connection
-
-### Troubleshooting
-
-**Cursor can't connect:**
-- Verify the HTTP server is running: `curl http://localhost:8082`
-- Check ngrok is forwarding: `curl https://your-ngrok-url.ngrok-free.app`
-- Ensure URL in Cursor config matches your ngrok URL
-
-**Tools not appearing:**
-- Restart Cursor after adding MCP configuration
-- Check Cursor's MCP settings panel
-- Verify HTTP server shows "status": "running"
-
-**Search returns no results:**
-- Ensure ChromaDB is running: `curl http://localhost:8000/api/v1/heartbeat`
-- Check OCR data exists: `ls refinery/data/ocr/*.json`
-- Verify MCP server can access ChromaDB (check logs)
 
 ## 🔧 Configuration
 
@@ -632,10 +444,6 @@ OPENAI_API_KEY=sk-your-api-key-here
 # ChromaDB Configuration
 CHROMA_HOST=localhost
 CHROMA_PORT=8000
-
-# Dashboard Configuration
-DASHBOARD_HOST=0.0.0.0
-DASHBOARD_PORT=8080
 
 # Screen Capture Configuration
 CAPTURE_INTERVAL=60
@@ -658,17 +466,6 @@ Edit `refinery/config.json`:
   "compress_old_data": true
 }
 ```
-
-### Dashboard Configuration
-
-The dashboard includes a comprehensive configuration panel accessible at:
-**http://localhost:8080** → System Configuration
-
-Available settings:
-- **Screen Capture**: Interval, OCR processes, auto-start
-- **Data Management**: Retention, file size limits, compression
-- **Dashboard**: Theme, refresh rate, notifications
-- **Advanced**: Logging, telemetry, experimental features
 
 ## 📊 Search Capabilities
 
@@ -722,15 +519,6 @@ results = collection.query(
 
 ### Common Issues
 
-#### Dashboard Won't Start
-```bash
-# Check if port 8080 is available
-lsof -i :8080
-
-# Try a different port
-cd dashboard && python app.py --port 8081
-```
-
 #### ChromaDB Connection Failed
 ```bash
 # Verify ChromaDB is running
@@ -766,111 +554,12 @@ cd mcp-server && python server.py
 3. **Enable Data Compression**: Turn on compression for older data
 4. **Disk Space Management**: Set appropriate data retention policies
 
-### Getting Help
-
-- **Dashboard Logs**: Check the System Logs section in the dashboard
-- **System Health**: Use the dashboard's health monitoring features
-- **Error Recovery**: The system includes automatic error recovery
-- **Manual Recovery**: Restart individual components as needed
-
-## 🔄 Updates & Maintenance
-
-### Updating Flow
-
-```bash
-# Pull latest changes
-git pull origin main
-
-# Update dependencies
-cd dashboard && pip install -r requirements.txt
-cd ../mcp-server && pip install -r requirements.txt
-cd ../refinery && pip install -r flow-requirements.txt
-```
-
-### Data Backup
-
-```bash
-# Backup OCR data
-cp -r refinery/data/ backup/data-$(date +%Y%m%d)/
-
-# Backup ChromaDB
-cp -r refinery/chroma/ backup/chroma-$(date +%Y%m%d)/
-```
-
-### Maintenance Tasks
-
-- **Weekly**: Check disk space usage in dashboard
-- **Monthly**: Review and clean old logs
-- **Quarterly**: Update dependencies and restart system
-
-## 📄 Sharable Webpages
-
-Flow includes a website builder tool that lets you create shareable webpages from your search results and findings. Perfect for team updates, project documentation, or sharing specific discoveries.
-
-### Features
-
-- **Markdown Support**: Full markdown with code highlighting, tables, images, videos
-- **Search Integration**: Embed Flow search results directly in pages
-- **Local or Public**: Serve pages locally or share via ngrok
-- **Custom Styling**: Modern, responsive design with dark/light themes
-- **Easy Sharing**: Generate unique URLs for each page
-
-### Quick Start
-
-1. **Create a page** via Claude Desktop:
-```
-"Create a webpage called 'ui-progress' with title 'UI Design Progress' 
-containing my search results for 'figma mobile designs' from this week"
-```
-
-2. **Access locally**:
-```
-http://localhost:8084/page/ui-progress
-```
-
-3. **Share publicly** (optional):
-```bash
-cd website-builder
-python server.py --port 8084
-# In another terminal:
-ngrok http 8084
-```
-
-Your page is now accessible at: `https://your-ngrok-url.ngrok.io/page/ui-progress`
-
-### Use Cases
-
-- **Team Updates**: Weekly standup summaries with screenshots
-- **Documentation**: Step-by-step guides with embedded images
-- **Project Tracking**: Progress reports with activity graphs  
-- **Knowledge Sharing**: Tutorials and findings with code examples
-
-**📖 Full Documentation**: See `workspace/website-builder-tool.md` for implementation details and advanced features.
-
 ## 🎯 Roadmap
 
-### Planned Features
-- [x] Audio recording with speech-to-text integration
-- [x] Sharable pages with markdown export
-- [x] Team collaboration via ngrok
-- [ ] Standup update automation tool
-- [ ] Mobile app for remote monitoring
-- [ ] Advanced analytics and insights
-- [ ] API for third-party integrations
-- [ ] Speaker diarization for audio transcripts
-
-### Recent Updates
-- ✅ **Audio recording and transcription** with OpenAI Whisper API
-- ✅ **Unified search** across audio and OCR data with type filtering
-- ✅ **Markdown storage** for audio transcripts in `refinery/data/audio/`
-- ✅ Complete Python MCP server migration
-- ✅ Team collaboration with ngrok and multi-instance support
-- ✅ Sharable webpage builder for search results
-- ✅ Modern web dashboard with real-time monitoring
-- ✅ Advanced configuration system with themes
-- ✅ Comprehensive error handling and recovery
-- ✅ System logs viewer with filtering
-- ✅ Enhanced search capabilities with date filtering
+### Completed Features
+- ✅ **Audio recording with speech-to-text integration** (October 11, 2025)
+- ✅ **Sharable pages with markdown export** (October 11, 2025)
+- ✅ **Team collaboration via ngrok**
 
 ## 📄 License
 
@@ -885,9 +574,3 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 - **Email**: joenewbry+flow@gmail.com
 - **Issues**: [GitHub Issues](https://github.com/joenewbry/flow/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/joenewbry/flow/discussions)
-
----
-
-⭐ **Star this repository** if you find it helpful! Your support helps us continue improving Flow.
-
-![Dataflow Diagram](images/Dataflow%20Diagram.png)
