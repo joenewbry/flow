@@ -6,7 +6,9 @@
 
 Don't loose your work. 
 
-Flow takes a screenshot each minute in the background and makes it searchable via well structured MCP tools. I use it with Claude.
+Flow takes a screenshot each minute in the background and makes it searchable via well structured MCP tools. 
+
+I use it with Claude.
 
 **So you can get questions like:**
 
@@ -14,7 +16,7 @@ Flow takes a screenshot each minute in the background and makes it searchable vi
 - Can you summarize what I worked on yesterday?
 - Please create onboarding documentation for the Centurion Project that I worked on in March 2025.
 
-** It's designed for Clause
+** It's designed for Claude**
 ![Example Usage](images/Flow%20Example.png)
 
 The entire codebase is in pre-release. And it's packed with a bunch of other interesting tools:
@@ -23,11 +25,6 @@ The entire codebase is in pre-release. And it's packed with a bunch of other int
 - Simple website creation backed by human readable markdown files and sharable over ngrok
 
 ## 🚀 Quick Start
-
-### Prerequisites
-- Python 3.10+
-- Tesseract OCR: `brew install tesseract` (macOS) or `apt-get install tesseract-ocr` (Linux)
-- Screen recording permissions (macOS: System Preferences → Security & Privacy → Privacy → Screen Recording)
 
 ### 1. Clone Repository
 ```bash
@@ -50,7 +47,15 @@ chroma run --host localhost --port 8000
 source .venv/bin/activate && python run.py
 ```
 
-### 3. Setup & Start MCP Server
+**That's it!** Flow is now capturing screenshots every minute and storing them in ChromaDB.
+
+---
+
+## 🤖 Claude/Cursor Integration
+
+### Setup MCP Server for Claude Desktop or Cursor
+To search your screen history through Claude or Cursor, set up the MCP server:
+
 ```bash
 # Setup (from project root)
 cd mcp-server
@@ -58,12 +63,9 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 chmod +x start.sh
-
-# Start MCP Server (Terminal 3)
-./start.sh
 ```
 
-### 4. Configure Claude Desktop
+**Configure Claude Desktop:**
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 ```json
 {
@@ -76,7 +78,10 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 }
 ```
 
-**That's it!** Flow is now capturing screenshots and you can search them through Claude Desktop.
+**Configure Cursor:**
+Add to Cursor's MCP settings with the same configuration format.
+
+**Then restart** Claude Desktop or Cursor to load the MCP server.
 
 ---
 
@@ -148,34 +153,79 @@ echo "OPENAI_API_KEY=sk-your-key-here" > .env
 
 ---
 
-### 🌐 Share Pages via Ngrok
-Share webpage summaries publicly.
+### 🌐 Website Builder & Ngrok Sharing
+Create and share webpage summaries of your work publicly.
 
-**Setup:**
+#### Creating Webpages
+Use the MCP `create-webpage` tool in Claude/Cursor:
+```
+"Create a webpage called 'weekly-update' with title 'Weekly Team Update' 
+containing my activity from this week"
+```
+
+Pages are saved as markdown in `website-builder/pages/` and rendered on-the-fly.
+
+---
+
+#### Option 1: HTTP MCP Server (Recommended)
+Serves both MCP tools AND webpages. Use this if you want remote MCP access too.
+
+**Start Server:**
 ```bash
-# Install ngrok
-brew install ngrok
-
-# Start HTTP MCP Server (if not already running)
 cd mcp-server
 source .venv/bin/activate
 python http_server.py --port 8082
 ```
 
-**Expose to Internet:**
+**Expose via Ngrok:**
 ```bash
-# Terminal 6
 ngrok http 8082
 ```
-
-You'll get a URL like: `https://abc123.ngrok-free.app`
-
-**Use in Cursor/Claude:**
-Update MCP config to use ngrok URL for remote access.
 
 **Access Pages:**
 - Local: `http://localhost:8082/page/my-summary`
 - Public: `https://abc123.ngrok-free.app/page/my-summary`
+
+**Bonus:** Update MCP config to use ngrok URL for remote Claude/Cursor access.
+
+---
+
+#### Option 2: Website Builder Server (Simpler)
+Just serves webpages, no MCP functionality. Use for simple page sharing.
+
+**Start Server:**
+```bash
+cd website-builder
+python3 server.py --port 8084
+```
+
+**Expose via Ngrok:**
+```bash
+ngrok http 8084
+```
+
+**Access Pages:**
+- Local: `http://localhost:8084/page/my-summary`
+- Public: `https://abc123.ngrok-free.app/page/my-summary`
+
+**Features:**
+- 📝 Renders markdown files on-the-fly
+- 🎨 Beautiful BearBlog-inspired styling
+- 📱 Responsive mobile design
+- 🌓 Automatic dark/light theme
+- 🔗 Simple, shareable URLs
+
+**Page Management:**
+```bash
+# List all pages
+curl http://localhost:8084/
+
+# View specific page
+open http://localhost:8084/page/my-summary
+
+# Pages are stored as .md files
+ls website-builder/pages/
+```
 
 ---
 
@@ -192,12 +242,38 @@ Once Flow is running, you can query your screen history through Claude Desktop o
 - "Create a webpage summary of my work this week"
 
 **Available tools:**
-- 🔍 `search-screenshots` - Search OCR data
+- 🔍 `search-screenshots` - Search OCR and audio data
 - 📊 `get-stats` - System statistics  
 - 📈 `activity-graph` - Activity timeline
 - 📅 `time-range-summary` - Time range data
 - ▶️ `start-flow` / ⏹️ `stop-flow` - System control
 - 🌐 `create-webpage` - Generate shareable pages
+
+### Search Capabilities
+
+Flow uses **semantic vector search** across all your data:
+
+**OCR Data** (`data_type: "ocr"`)
+- Screenshots captured every minute
+- Text extracted via Tesseract OCR
+- Stored in `refinery/data/ocr/*.json`
+
+**Audio Data** (`data_type: "audio"`) - if enabled
+- Continuous audio transcription
+- Microphone + system audio (with BlackHole)
+- Stored in `refinery/data/audio/*.md`
+
+Both are searchable together or separately:
+```python
+# Search everything
+"Find anything about the project deadline"
+
+# Search only audio
+search_screenshots(query="zoom meeting notes", data_type="audio")
+
+# Search only screens
+search_screenshots(query="github repository", data_type="ocr")
+```
 
 ---
 
