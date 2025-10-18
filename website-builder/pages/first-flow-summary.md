@@ -115,7 +115,3 @@
 - **Active Time Span:** 12:00 AM - 7:35 PM (PST)
 - **Content-Rich Captures:** 8 major work sessions
 - **Primary Display:** Display_1
-
----
-
-*This summary was generated automatically from Flow screen history data.*

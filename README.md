@@ -559,7 +559,10 @@ cd mcp-server && python server.py
 ### Completed Features
 - ✅ **Audio recording with speech-to-text integration** (October 11, 2025)
 - ✅ **Sharable pages with markdown export** (October 11, 2025)
-- ✅ **Team collaboration via ngrok**
+
+### Planned Features
+- [ ] Team collaboration via ngrok
+- [ ] Improve Website Page Creation
 
 ## 📄 License
 
