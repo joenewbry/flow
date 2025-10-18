@@ -4,239 +4,208 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://python.org)
 
-## 🎯 Overview
-
 Don't loose your work. 
 
-Flow takes a screenshot each minute in the background and makes it searchable via well structured MCP tools. 
+Flow takes a screenshot each minute in the background and makes it searchable via well structured MCP tools. I use it with Claude.
 
 **So you can get questions like:**
 
+- Find the URL of the hacker news posts about Anthropic
 - Can you summarize what I worked on yesterday?
 - Please create onboarding documentation for the Centurion Project that I worked on in March 2025.
 
-The entire codebase is in pre-release. And it's packed with a bunch of other interesting tools:
-
-- Background audio recording
-- Simple website creation backed by human readable markdown files and sharable over ngrok
-
+** It's designed for Clause
 ![Example Usage](images/Flow%20Example.png)
 
-**Perfect for:**
-- Remembering what you worked on weeks or months ago
-- Finding specific conversations, emails, or documents you viewed
-- Tracking your productivity and work patterns
-- Quickly locating setup instructions or configurations you've forgotten
+The entire codebase is in pre-release. And it's packed with a bunch of other interesting tools:
 
-## ✨ Key Features
-
-### 🖥️ **Flow Dashboard** - Modern Web Interface
-- **Real-time System Monitoring**: Live status of all Flow components
-- **Interactive OCR Activity Graphs**: Visualize your screen activity over time
-- **Advanced Search Interface**: Search your screen history with date filtering
-- **System Configuration**: Comprehensive settings panel with theme support
-- **System Logs Viewer**: Real-time log monitoring with filtering
-- **MCP Tools Dashboard**: Monitor and test all available Claude Desktop tools
-
-### 🔍 **Intelligent Search**
-- **Vector-based Search**: Find content by meaning, not just exact text matches
-- **Natural Language Queries**: Ask questions like "Find the email about the project deadline"
-- **Date Range Filtering**: Search within specific time periods
-- **Relevance Scoring**: Results ranked by semantic similarity
-
-### 🤖 **Claude Desktop Integration**
-- **Python MCP Server**: High-performance server with 7 powerful tools
-- **Standalone Operation**: No need to launch through Claude Desktop
-- **Remote System Control**: Start/stop Flow processes from Claude
-- **Comprehensive Analytics**: Detailed statistics and activity reports
-
-### 📊 **Advanced Analytics**
-- **Activity Timeline**: Visual representation of your screen activity
-- **Productivity Insights**: Understand your work patterns
-- **Data Statistics**: Comprehensive metrics about your captured data
-- **Export Capabilities**: Download logs and data for analysis
+- Background audio recording 
+- Simple website creation backed by human readable markdown files and sharable over ngrok
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- **Python 3.10+** (tested with Python 3.13)
-- **Tesseract OCR** (install via system package manager)
-- **Screen capture permissions** (macOS: System Preferences > Security & Privacy > Privacy > Screen Recording)
+- Python 3.10+
+- Tesseract OCR: `brew install tesseract` (macOS) or `apt-get install tesseract-ocr` (Linux)
+- Screen recording permissions (macOS: System Preferences → Security & Privacy → Privacy → Screen Recording)
 
-### 1. Clone and Setup
+### 1. Clone Repository
 ```bash
 git clone https://github.com/joenewbry/flow.git
 cd flow
 ```
 
-### 2. Set up Screen Tracking System
+### 2. Setup & Start ChromaDB + Screen Capture
 ```bash
+# Setup
 cd refinery
 python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+source .venv/bin/activate
 pip install -r flow-requirements.txt
-cd ..
+
+# Start ChromaDB (Terminal 1)
+chroma run --host localhost --port 8000
+
+# Start Screen Capture (Terminal 2 - from refinery directory)
+source .venv/bin/activate && python run.py
 ```
 
-### 3. Set up Flow Dashboard
+### 3. Setup & Start MCP Server
 ```bash
-cd dashboard
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-cd ..
-```
-
-### 4. Set up Python MCP Server
-```bash
+# Setup (from project root)
 cd mcp-server
 python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+source .venv/bin/activate
 pip install -r requirements.txt
 chmod +x start.sh
-cd ..
+
+# Start MCP Server (Terminal 3)
+./start.sh
 ```
 
-### 5. Set up Audio Recording (Optional)
-```bash
-# Run the audio setup script
-./setup_audio_recorder.sh
-
-# Create .env file with your OpenAI API key
-echo "OPENAI_API_KEY=your-api-key-here" > .env
+### 4. Configure Claude Desktop
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+```json
+{
+  "mcpServers": {
+    "flow": {
+      "command": "/Users/YOUR_USERNAME/dev/flow/mcp-server/.venv/bin/python",
+      "args": ["-u", "/Users/YOUR_USERNAME/dev/flow/mcp-server/server.py"]
+    }
+  }
+}
 ```
 
-### 6. Start the System
-```bash
-# Terminal 1: Start ChromaDB server
-cd refinery && source .venv/bin/activate && chroma run --host localhost --port 8000
-
-# Terminal 2: Start screen capture
-cd refinery && source .venv/bin/activate && python run.py
-
-# Terminal 3: Start Flow Dashboard
-cd dashboard && source .venv/bin/activate && python app.py
-
-# Terminal 4: Start MCP Server (for Claude Desktop)
-cd mcp-server && ./start.sh
-
-# Terminal 5 (Optional): Start Audio Recording
-./start_audio_background.sh
-```
-
-### 7. Access Flow Dashboard
-Open your browser and navigate to: **http://localhost:8081**
-
-## 🎙️ Audio Recording & Transcription
-
-Flow includes an intelligent audio recording system that automatically captures, transcribes, and indexes audio (like Zoom calls, meetings, etc.) alongside your screen data.
-
-### How Audio Recording Works
-
-The audio system captures **ALL audio** on your computer using a **chunk-based processing approach**:
-
-1. **Dual Capture**: Records BOTH your microphone AND system audio (YouTube, Zoom, music, etc.)
-2. **Continuous Monitoring**: Listens for audio activity in the background
-3. **Smart Detection**: Automatically starts recording when audio is detected (above silence threshold)
-4. **Chunk Processing**: Breaks audio into 30-second chunks for efficient transcription
-5. **Real-time Transcription**: Uses OpenAI Whisper API to transcribe each chunk as it's captured
-6. **Markdown Storage**: Saves transcripts as searchable `.md` files in `refinery/data/audio/`
-7. **ChromaDB Integration**: Stores transcripts in the same `screen_ocr_history` collection as OCR data, tagged with `data_type: "audio"`
-
-**What Gets Captured:**
-- 🎤 Your voice through microphone
-- 🔊 System audio (YouTube, Zoom calls, music, all computer sounds)
-- 💬 Both sides of video calls
-- 🎵 Any audio playing on your computer
-
-### Audio Setup
-
-**Important**: To capture BOTH microphone and system audio, you need BlackHole.
-
-1. **Install BlackHole** (for system audio capture):
-```bash
-brew install blackhole-2ch
-```
-
-2. **Configure Audio Routing** (see detailed guide below):
-   - Open "Audio MIDI Setup"
-   - Create Multi-Output Device (Speakers + BlackHole)
-   - Set system output to this Multi-Output device
-
-3. **Install dependencies**:
-```bash
-./setup_audio_recorder.sh
-```
-
-4. **Add OpenAI API key** to `.env` file:
-```bash
-echo "OPENAI_API_KEY=sk-your-key-here" >> .env
-```
-
-5. **Start audio recording**:
-```bash
-./start_audio_background.sh
-```
-
-📖 **Full Setup Guide**: See `AUDIO_SETUP_GUIDE.md` for detailed instructions on capturing both microphone and system audio.
-
-### Audio Data Structure
-
-Each audio session creates:
-- **`.md` file**: Human-readable markdown transcript with timestamps
-- **`.json` file**: Structured metadata about the session
-- **`.wav` file**: Original audio recording (for backup)
-- **ChromaDB entries**: Searchable chunks stored with `data_type: "audio"` tag
-
-Example markdown transcript:
-```markdown
-# Audio Transcript: auto_20241015_143022
-
-**Session Start:** 2024-10-15T14:30:22
+**That's it!** Flow is now capturing screenshots and you can search them through Claude Desktop.
 
 ---
 
-## [14:30:25]
+## 🎛️ Optional Setup
 
-Welcome everyone to today's standup meeting...
+### 📊 Flow Dashboard (Web UI)
+Monitor and control Flow through a web interface.
 
-## [14:31:02]
+**Setup & Run:**
+```bash
+# Setup (from project root)
+cd dashboard
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 
-Let me share what I worked on yesterday...
+# Start Dashboard (Terminal 4)
+python app.py
 ```
 
-### Audio vs OCR Data
+**Access:** http://localhost:8081
 
-Both data types are stored in the same `screen_ocr_history` ChromaDB collection but tagged differently:
+**Features:**
+- 📈 Real-time system monitoring
+- 🔍 Search interface with date filtering
+- 📊 OCR activity graphs
+- ⚙️ System configuration panel
+- 📝 Live system logs
 
-- **OCR Data**: `data_type: "ocr"` - Screenshots with text extraction
-- **Audio Data**: `data_type: "audio"` - Audio transcripts from meetings/calls
+---
 
-This allows you to:
-- Search both types together: "Find anything about the project deadline"
-- Filter by type: Search only audio with `where={"data_type": "audio"}`
-- Get complete context: See what was said AND what was on screen at any time
+### 🎙️ Audio Recording & Transcription
+Record and transcribe microphone + system audio (Zoom, YouTube, etc.).
 
-### Requirements
+**Setup:**
+```bash
+# 1. Install BlackHole (for system audio capture)
+brew install blackhole-2ch
 
-- **OpenAI API Key**: Required for Whisper API transcription (~$0.006/minute)
-- **ffmpeg**: For audio capture (auto-installed via Homebrew on macOS)
-- **BlackHole** (recommended): For capturing system audio - `brew install blackhole-2ch`
-- **ChromaDB**: Must be running for searchability (audio still saves locally if ChromaDB is down)
+# 2. Configure Audio MIDI Setup
+# - Open "Audio MIDI Setup" app
+# - Create Multi-Output Device (Speakers + BlackHole)
+# - Set as system default output
+# See AUDIO_SETUP_GUIDE.md for detailed instructions
 
-**Without BlackHole**: Only microphone will be captured  
-**With BlackHole**: Both microphone AND system audio (YouTube, Zoom, etc.) will be captured
+# 3. Install dependencies
+./setup_audio_recorder.sh
 
-### Audio Storage Location
+# 4. Add OpenAI API key
+echo "OPENAI_API_KEY=sk-your-key-here" > .env
+```
 
-- **Files**: `refinery/data/audio/` (markdown and JSON files)
-- **ChromaDB**: `screen_ocr_history` collection (tagged with `data_type: "audio"`)
+**Start Recording:**
+```bash
+# Terminal 5
+./start_audio_background.sh
+```
 
-## 🌐 Flow Dashboard
+**What it captures:**
+- 🎤 Microphone input
+- 🔊 System audio (YouTube, Zoom, music)
+- 💬 Both sides of video calls
 
-The Flow Dashboard is your central control center for managing and monitoring the entire Flow system.
+**Storage:**
+- `refinery/data/audio/*.md` - Markdown transcripts
+- ChromaDB - Searchable with `data_type: "audio"` tag
 
-### Dashboard Sections
+📖 **Full Guide:** See `AUDIO_SETUP_GUIDE.md`
+
+---
+
+### 🌐 Share Pages via Ngrok
+Share webpage summaries publicly.
+
+**Setup:**
+```bash
+# Install ngrok
+brew install ngrok
+
+# Start HTTP MCP Server (if not already running)
+cd mcp-server
+source .venv/bin/activate
+python http_server.py --port 8082
+```
+
+**Expose to Internet:**
+```bash
+# Terminal 6
+ngrok http 8082
+```
+
+You'll get a URL like: `https://abc123.ngrok-free.app`
+
+**Use in Cursor/Claude:**
+Update MCP config to use ngrok URL for remote access.
+
+**Access Pages:**
+- Local: `http://localhost:8082/page/my-summary`
+- Public: `https://abc123.ngrok-free.app/page/my-summary`
+
+---
+
+## 🔍 Using Flow
+
+### MCP Tools in Claude/Cursor
+
+Once Flow is running, you can query your screen history through Claude Desktop or Cursor using natural language:
+
+**Example queries:**
+- "Find the GitHub repository I was looking at yesterday"
+- "What was I working on between 2pm and 5pm?"
+- "Show me screenshots containing 'project deadline'"
+- "Create a webpage summary of my work this week"
+
+**Available tools:**
+- 🔍 `search-screenshots` - Search OCR data
+- 📊 `get-stats` - System statistics  
+- 📈 `activity-graph` - Activity timeline
+- 📅 `time-range-summary` - Time range data
+- ▶️ `start-flow` / ⏹️ `stop-flow` - System control
+- 🌐 `create-webpage` - Generate shareable pages
+
+---
+
+### Dashboard Features (if enabled)
+
+Access the Flow Dashboard at **http://localhost:8081**
+
+#### Dashboard Sections
 
 #### 📈 **System Status & Controls**
 - Real-time status of ChromaDB and screen capture processes
@@ -273,116 +242,11 @@ The Flow Dashboard is your central control center for managing and monitoring th
 - Usage examples and parameter documentation
 - Claude Desktop configuration instructions
 
-### Dashboard Features
-- **Responsive Design**: Works on desktop and mobile devices
-- **Dark/Light Themes**: Automatic system theme detection
-- **Real-time Updates**: Live data refresh without page reload
-- **Error Recovery**: Automatic error handling and system recovery
-- **Configuration Persistence**: Settings saved across sessions
+---
 
-## 🤖 Claude Desktop Integration & Team Collaboration
+## 🤖 Advanced: Team Collaboration with Ngrok
 
-Flow integrates seamlessly with Claude Desktop through a powerful Python MCP server. With ngrok support, you can enable team collaboration by querying multiple team members' Flow instances simultaneously.
-
-### MCP Server Setup
-
-1. **Add to Claude Desktop Configuration**
-
-Edit your Claude Desktop config file and add:
-
-```json
-{
-  "mcpServers": {
-    "flow": {
-      "command": "/Users/joe/.local/bin/uv",
-      "args": [
-        "--directory",
-        "/Users/joe/dev/flow/mcp-server",
-        "run",
-        "server.py"
-      ]
-    }
-  }
-}
-```
-
-**Or use direct Python execution:**
-
-```json
-{
-  "mcpServers": {
-    "flow": {
-      "command": "python",
-      "args": ["/path/to/flow/mcp-server/server.py"],
-      "cwd": "/path/to/flow/mcp-server"
-    }
-  }
-}
-```
-
-⚠️ **Important**: Replace `/path/to/flow/` with your actual Flow installation path.
-
-2. **Restart Claude Desktop** to load the new MCP server.
-
-### Available MCP Tools
-
-The Flow MCP server provides 7 powerful tools for interacting with your screen history:
-
-#### 🔍 **search-screenshots**
-Search through OCR data with natural language queries.
-```
-Example: "Find the email about the project deadline from last week"
-```
-
-#### ℹ️ **what-can-i-do**
-Get comprehensive information about Flow capabilities and system status.
-```
-Example: "What can Flow do?"
-```
-
-#### 📊 **get-stats**
-Retrieve detailed statistics about your OCR data and system performance.
-```
-Example: "Show me Flow statistics"
-```
-
-#### 📈 **activity-graph**
-Generate activity timeline graphs showing capture patterns over time.
-```
-Example: "Generate an activity graph for the last 7 days"
-```
-
-#### 📅 **time-range-summary**
-Get sampled OCR data over specific time ranges with intelligent sampling.
-```
-Example: "Summarize my activity from 9am to 5pm yesterday"
-```
-
-#### ▶️ **start-flow**
-Start the Flow system including ChromaDB server and screen capture process.
-```
-Example: "Start the Flow system"
-```
-
-#### ⏹️ **stop-flow**
-Stop the Flow system processes gracefully with proper cleanup.
-```
-Example: "Stop the Flow system"
-```
-
-### Usage Examples
-
-**Search for specific content:**
-> "Search for screenshots containing 'github.com' from yesterday"
-
-**Get system overview:**
-> "What can Flow do? Show me the current system status."
-
-**Analyze productivity:**
-> "Generate an activity graph for the past week and show me statistics"
-
-**System control:**
-> "Start Flow monitoring and show me when it's ready"
+Enable team collaboration by exposing your Flow instance over ngrok, allowing multiple team members to query each other's screen history.
 
 **Team collaboration (with multi-instance setup):**
 > "Has John finished the UI designs for XYZ? Search his Flow for figma mentions."
