@@ -229,6 +229,7 @@ footer {
     margin-top: 4rem;
     text-align: center;
     color: var(--secondary-color);
+    font-size: 0.9em;
 }
 
 @media (max-width: 768px) {

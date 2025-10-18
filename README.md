@@ -1,14 +1,26 @@
-# Flow - Intelligent Screen History & Search System
+# Flow
 
-[![GitHub stars](https://img.shields.io/github/stars/yourusername/flow.svg?style=social&label=Star)](https://github.com/yourusername/flow)
+[![GitHub stars](https://img.shields.io/github/stars/joenewbry/flow.svg?style=social&label=Star)](https://github.com/joenewbry/flow)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://python.org)
 
 ## 🎯 Overview
 
-Flow is an intelligent screen history and search system that automatically captures, processes, and indexes your screen activity. Using advanced OCR and vector search technology, Flow enables you to search through your entire screen history using natural language queries.
+Don't loose your work. 
 
-![Example Usage](images/Example%20Usage.png)
+Flow takes a screenshot each minute in the background and makes it searchable via well structured MCP tools. 
+
+**So you can get questions like:**
+
+- Can you summarize what I worked on yesterday?
+- Please create onboarding documentation for the Centurion Project that I worked on in March 2025.
+
+The entire codebase is in pre-release. And it's packed with a bunch of other interesting tools:
+
+- Background audio recording
+- Simple website creation backed by human readable markdown files and sharable over ngrok
+
+![Example Usage](images/Flow%20Example.png)
 
 **Perfect for:**
 - Remembering what you worked on weeks or months ago
@@ -53,7 +65,7 @@ Flow is an intelligent screen history and search system that automatically captu
 
 ### 1. Clone and Setup
 ```bash
-git clone https://github.com/yourusername/flow.git
+git clone https://github.com/joenewbry/flow.git
 cd flow
 ```
 
@@ -931,8 +943,8 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 ## 📧 Support
 
 - **Email**: joenewbry+flow@gmail.com
-- **Issues**: [GitHub Issues](https://github.com/yourusername/flow/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/flow/discussions)
+- **Issues**: [GitHub Issues](https://github.com/joenewbry/flow/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/joenewbry/flow/discussions)
 
 ---
 
