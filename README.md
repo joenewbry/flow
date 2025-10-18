@@ -4,8 +4,6 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://python.org)
 
-Don't loose your work. 
-
 Flow takes a screenshot each minute in the background and makes it searchable via well structured MCP tools. 
 
 I use it with Claude.
@@ -17,6 +15,7 @@ I use it with Claude.
 - Please create onboarding documentation for the Centurion Project that I worked on in March 2025.
 
 **It's designed for Claude (or any other MCP frontend)**
+
 ![Example Usage](images/Flow%20Example.png)
 
 The entire codebase is in pre-release. And it's packed with a bunch of other interesting tools:
