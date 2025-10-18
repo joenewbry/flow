@@ -36,9 +36,53 @@ elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
     fi
 fi
 
+# Check if Python 3 is available
+if ! command -v python3 &> /dev/null; then
+    echo "❌ Python 3 not found!"
+    echo "   Please install Python 3 first."
+    exit 1
+fi
+
+# Create virtual environment if it doesn't exist
+if [ ! -d "audio_env" ]; then
+    echo "🐍 Creating virtual environment..."
+    python3 -m venv audio_env
+    if [ $? -ne 0 ]; then
+        echo "❌ Failed to create virtual environment!"
+        echo "   Try running: python3 -m venv audio_env"
+        exit 1
+    fi
+else
+    echo "✓ Virtual environment already exists"
+fi
+
 # Activate the audio environment
 echo "🐍 Activating audio_env..."
 source audio_env/bin/activate
+
+# Check if pip is available
+if ! command -v pip &> /dev/null; then
+    echo "❌ pip not found!"
+    echo ""
+    echo "📋 To install pip, try one of these options:"
+    echo ""
+    echo "   Option 1 - Using ensurepip (recommended):"
+    echo "     python3 -m ensurepip --upgrade"
+    echo ""
+    echo "   Option 2 - Using get-pip.py:"
+    echo "     curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py"
+    echo "     python3 get-pip.py"
+    echo ""
+    echo "   Option 3 - On macOS with Homebrew:"
+    echo "     brew install python3"
+    echo ""
+    echo "   Option 4 - On Ubuntu/Debian:"
+    echo "     sudo apt-get update"
+    echo "     sudo apt-get install python3-pip"
+    echo ""
+    echo "After installing pip, run this setup script again."
+    exit 1
+fi
 
 # Install Python requirements
 echo "📦 Installing Python requirements..."

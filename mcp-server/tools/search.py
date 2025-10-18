@@ -129,6 +129,75 @@ class SearchTool:
             logger.warning(f"Error reading OCR file {file_path}: {e}")
             return None
     
+    def _read_audio_file(self, file_path: Path) -> Optional[Dict[str, Any]]:
+        """Read and parse audio transcript file (reads markdown for actual transcript text)."""
+        try:
+            # Read JSON for metadata
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            # Ensure required fields exist
+            data.setdefault('session_id', file_path.stem)
+            data.setdefault('start_time', datetime.fromtimestamp(file_path.stat().st_mtime).isoformat())
+            
+            # Read markdown file for actual transcript text
+            md_file = file_path.with_suffix('.md')
+            transcript_text = ""
+            if md_file.exists():
+                with open(md_file, 'r', encoding='utf-8') as f:
+                    md_content = f.read()
+                    # Extract text from markdown (skip headers and metadata)
+                    lines = md_content.split('\n')
+                    in_transcript = False
+                    for line in lines:
+                        if line.startswith('##'):  # Timestamp headers
+                            in_transcript = True
+                            continue
+                        if in_transcript and line.strip() and not line.startswith('#') and not line.startswith('*'):
+                            transcript_text += line + " "
+            
+            # Store transcript text in data for searching
+            data['transcript_text'] = transcript_text.strip()
+            data.setdefault('transcript', [])
+            
+            return data
+            
+        except Exception as e:
+            logger.warning(f"Error reading audio file {file_path}: {e}")
+            return None
+    
+    def _parse_audio_filename_timestamp(self, filename: str) -> Optional[datetime]:
+        """Parse timestamp from audio filename (format: auto_YYYYMMDD_HHMMSS.json)."""
+        try:
+            if not filename.endswith('.json'):
+                return None
+            
+            # Remove extension and split
+            parts = filename[:-5].split('_')
+            if len(parts) < 3 or parts[0] != 'auto':
+                return None
+            
+            date_part = parts[1]  # YYYYMMDD
+            time_part = parts[2]  # HHMMSS
+            
+            # Parse date
+            year = date_part[:4]
+            month = date_part[4:6]
+            day = date_part[6:8]
+            
+            # Parse time
+            hour = time_part[:2]
+            minute = time_part[2:4]
+            second = time_part[4:6]
+            
+            # Construct ISO format
+            iso_string = f"{year}-{month}-{day}T{hour}:{minute}:{second}"
+            return datetime.fromisoformat(iso_string)
+            
+        except Exception as e:
+            logger.debug(f"Error parsing audio timestamp from filename {filename}: {e}")
+            return None
+    
     async def search_screenshots(
         self,
         query: str,
@@ -155,7 +224,7 @@ class SearchTool:
                 return await self._search_chromadb(query, start_date, end_date, limit, data_type)
             else:
                 logger.warning("ChromaDB not available, falling back to file-based search")
-                return await self._search_files(query, start_date, end_date, limit)
+                return await self._search_files(query, start_date, end_date, limit, data_type)
             
         except Exception as e:
             logger.error(f"Error searching OCR data: {e}")
@@ -248,18 +317,19 @@ class SearchTool:
         except Exception as e:
             logger.error(f"Error in ChromaDB search: {e}")
             # Fall back to file-based search
-            return await self._search_files(query, start_date, end_date, limit)
+            return await self._search_files(query, start_date, end_date, limit, data_type)
     
     async def _search_files(
         self,
         query: str,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
-        limit: int = 10
+        limit: int = 10,
+        data_type: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Fallback file-based search (OCR files only)."""
+        """Fallback file-based search (supports both OCR and audio files)."""
         try:
-            logger.info(f"File-based search (fallback): query='{query}'")
+            logger.info(f"File-based search (fallback): query='{query}', data_type={data_type}")
             
             # Parse date filters
             start_dt = None
@@ -270,49 +340,81 @@ class SearchTool:
             if end_date:
                 end_dt = datetime.fromisoformat(end_date + "T23:59:59")
             
-            # Get OCR files
-            ocr_files = list(self.ocr_data_dir.glob("*.json"))
-            ocr_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)  # Most recent first
+            # Get files based on data_type filter
+            all_files = []
+            
+            # Get OCR files if requested
+            if data_type is None or data_type == "ocr":
+                ocr_files = list(self.ocr_data_dir.glob("*.json"))
+                all_files.extend([(f, "ocr") for f in ocr_files])
+            
+            # Get audio files if requested
+            if data_type is None or data_type == "audio":
+                audio_dir = self.workspace_root / "refinery" / "data" / "audio"
+                if audio_dir.exists():
+                    audio_files = list(audio_dir.glob("*.json"))
+                    all_files.extend([(f, "audio") for f in audio_files])
+            
+            # Sort by modification time (most recent first)
+            all_files.sort(key=lambda x: x[0].stat().st_mtime, reverse=True)
             
             results = []
             processed = 0
             
-            for file_path in ocr_files:
+            for file_path, file_type in all_files:
                 if len(results) >= limit:
                     break
                 
                 try:
                     # Check date filter using filename timestamp
                     file_timestamp = self._parse_filename_timestamp(file_path.name)
+                    if not file_timestamp and file_type == "audio":
+                        # Try parsing audio filename: auto_YYYYMMDD_HHMMSS.json
+                        file_timestamp = self._parse_audio_filename_timestamp(file_path.name)
+                    
                     if file_timestamp:
                         if start_dt and file_timestamp < start_dt:
                             continue
                         if end_dt and file_timestamp > end_dt:
                             continue
                     
-                    data = self._read_ocr_file(file_path)
-                    if not data:
-                        continue
+                    # Read file based on type
+                    if file_type == "ocr":
+                        data = self._read_ocr_file(file_path)
+                        if not data:
+                            continue
+                        text = data.get('text', '')
+                        screen_name = data.get("screen_name", "N/A")
+                    else:  # audio
+                        data = self._read_audio_file(file_path)
+                        if not data:
+                            continue
+                        # For audio, use transcript text from markdown file
+                        text = data.get("transcript_text", "")
+                        if not text:
+                            # Fallback to transcript array if available
+                            text = " ".join([t.get("text", "") for t in data.get("transcript", [])])
+                        screen_name = data.get("session_id", "N/A")
                     
                     processed += 1
                     
                     # Simple text search (case-insensitive)
-                    text = data.get('text', '').lower()
+                    text_lower = text.lower()
                     query_lower = query.lower()
                     
-                    if query_lower in text:
+                    if query_lower in text_lower:
                         # Calculate relevance score
-                        relevance = text.count(query_lower)
+                        relevance = text_lower.count(query_lower)
                         
                         # Create text preview with context around matches
-                        preview = self._create_preview(text, query_lower, max_length=200)
+                        preview = self._create_preview(text_lower, query_lower, max_length=200)
                         
                         results.append({
-                            "timestamp": data.get("timestamp"),
-                            "screen_name": data.get("screen_name"),
-                            "data_type": "ocr",  # File-based search only finds OCR data
-                            "text_length": data.get("text_length", 0),
-                            "word_count": data.get("word_count", 0),
+                            "timestamp": data.get("start_time") if file_type == "audio" else data.get("timestamp"),
+                            "screen_name": screen_name,
+                            "data_type": file_type,
+                            "text_length": len(text),
+                            "word_count": len(text.split()),
                             "text_preview": preview,
                             "relevance": relevance,
                             "match_count": relevance,
@@ -334,13 +436,13 @@ class SearchTool:
                 "total_found": len(results),
                 "processed_files": processed,
                 "search_method": "file_based_text_search",
-                "data_type_filter": "ocr_only",  # File search only finds OCR
+                "data_type_filter": data_type or "all",
                 "date_range": {
                     "start_date": start_date,
                     "end_date": end_date
                 },
                 "search_summary": {
-                    "total_files_available": len(ocr_files),
+                    "total_files_available": len(all_files),
                     "files_processed": processed,
                     "matches_found": len(results),
                     "search_terms": [query]

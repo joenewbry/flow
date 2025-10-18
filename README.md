@@ -40,29 +40,19 @@ source .venv/bin/activate
 pip install -r flow-requirements.txt
 
 # Start ChromaDB (Terminal 1)
+brew install tesseract
 chroma run --host localhost --port 8000
 
 # Start Screen Capture (Terminal 2 - from refinery directory)
 source .venv/bin/activate && python run.py
 ```
+*You'll need to accept screen recording in system settings for terminal (or Cursor) or wherever you're running the OCR process*
 
 **That's it!** Flow is now capturing screenshots every minute and storing them in ChromaDB.
 
 ---
 
 ## 🤖 Claude Desktop Integration
-
-### Setup MCP Server for Claude Desktop
-To search your screen history through Claude Desktop, set up the MCP server:
-
-```bash
-# Setup (from project root)
-cd mcp-server
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-chmod +x start.sh
-```
 
 **Configure Claude Desktop:**
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
@@ -76,10 +66,16 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
   }
 }
 ```
+tldr;
 
-**Then restart** Claude Desktop to load the MCP server.
+1. Open settings in Claude
+2. Open developer settings (this creates the config file mentioned above)
+3. Open the config file in your favorite text editor and past in your config
+- Note: Make sure to update the `YOUR_USERNAME` portion
 
 📖 **Configuration Guide:** See [Claude's MCP documentation](https://modelcontextprotocol.io/quickstart/user) for more details on setting up MCP servers.
+
+**Then restart** Claude Desktop to load the MCP server.
 
 ---
 
@@ -137,14 +133,44 @@ search_screenshots(query="github repository", data_type="ocr")
 Record and transcribe microphone + system audio (Zoom, YouTube, etc.).
 
 **Setup:**
-```bash
-# 1. Install BlackHole (for system audio capture)
-brew install blackhole-2ch
+1. Install BlackHole (for system audio capture)
+- `brew install blackhole-2ch`
+- Restart computer for changes to take effect
 
-# 2. Configure Audio MIDI Setup
-# - Open "Audio MIDI Setup" app
-# - Create Multi-Output Device (Speakers + BlackHole)
-# - Set as system default output
+### Part 2: Configure Audio Routing
+
+#### 2.1 Open Audio MIDI Setup
+
+1. Press `Cmd + Space` and search for "Audio MIDI Setup"
+2. Or go to: `/Applications/Utilities/Audio MIDI Setup.app`
+
+#### 2.2 Create Multi-Output Device
+
+1. Click the **"+"** button in bottom-left corner
+2. Select **"Create Multi-Output Device"**
+3. Check these devices:
+   - ✅ **Your speakers/headphones** (e.g., "MacBook Pro Speakers" or your headphones)
+   - ✅ **BlackHole 2ch**
+4. **Important**: Make sure your speakers are listed **first** (so you can still hear audio)
+5. Rename it to something memorable like "Main + BlackHole"
+
+#### 2.3 Create Aggregate Device (for microphone + system audio)
+
+1. Click the **"+"** button again
+2. Select **"Create Aggregate Device"**
+3. Check these devices:
+   - ✅ **Built-in Microphone** (or your external microphone)
+   - ✅ **BlackHole 2ch**
+4. Rename it to "Mic + System Audio"
+
+### Part 3: Set System Output
+
+1. **System Settings** > **Sound** > **Output**
+2. Select your **"Main + BlackHole"** multi-output device
+3. This routes all system audio to both your speakers AND BlackHole
+
+**Result**: You'll hear everything normally, but audio is also routed to BlackHole for recording.
+
 # See AUDIO_SETUP_GUIDE.md for detailed instructions
 
 # 3. Install dependencies
@@ -154,9 +180,10 @@ brew install blackhole-2ch
 echo "OPENAI_API_KEY=sk-your-key-here" > .env
 ```
 
+Note: api key is required for converting .wav to text :)
+
 **Start Recording:**
 ```bash
-# Terminal 5
 ./start_audio_background.sh
 ```
 
