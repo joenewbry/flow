@@ -166,7 +166,7 @@ class FlowRunner:
                 "word_count": ocr_data["word_count"],
                 "source": ocr_data["source"],
                 "extracted_text": ocr_data["text"],
-                "data_type": "ocr",  # Tag to differentiate from audio
+                "data_type": "ocr",
                 "task_category": "screenshot_ocr"
             }
             
@@ -209,7 +209,7 @@ class FlowRunner:
                 "word_count": ocr_data["word_count"],
                 "source": ocr_data["source"],
                 "extracted_text": ocr_data["text"],
-                "data_type": "ocr",  # Tag to differentiate from audio
+                "data_type": "ocr",
                 "task_category": "screenshot_ocr"
             }
             
@@ -340,7 +340,7 @@ class FlowRunner:
                             "word_count": ocr_data["word_count"],
                             "source": ocr_data["source"],
                             "extracted_text": ocr_data["text"],
-                            "data_type": "ocr",  # Tag to differentiate from audio
+                            "data_type": "ocr",
                             "task_category": "screenshot_ocr"
                         }
                         

@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class SearchTool:
-    """Tool for searching OCR and audio data."""
+    """Tool for searching OCR data from screenshots."""
     
     def __init__(self, workspace_root: Path):
         self.workspace_root = workspace_root
@@ -129,75 +129,6 @@ class SearchTool:
             logger.warning(f"Error reading OCR file {file_path}: {e}")
             return None
     
-    def _read_audio_file(self, file_path: Path) -> Optional[Dict[str, Any]]:
-        """Read and parse audio transcript file (reads markdown for actual transcript text)."""
-        try:
-            # Read JSON for metadata
-            with open(file_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            
-            # Ensure required fields exist
-            data.setdefault('session_id', file_path.stem)
-            data.setdefault('start_time', datetime.fromtimestamp(file_path.stat().st_mtime).isoformat())
-            
-            # Read markdown file for actual transcript text
-            md_file = file_path.with_suffix('.md')
-            transcript_text = ""
-            if md_file.exists():
-                with open(md_file, 'r', encoding='utf-8') as f:
-                    md_content = f.read()
-                    # Extract text from markdown (skip headers and metadata)
-                    lines = md_content.split('\n')
-                    in_transcript = False
-                    for line in lines:
-                        if line.startswith('##'):  # Timestamp headers
-                            in_transcript = True
-                            continue
-                        if in_transcript and line.strip() and not line.startswith('#') and not line.startswith('*'):
-                            transcript_text += line + " "
-            
-            # Store transcript text in data for searching
-            data['transcript_text'] = transcript_text.strip()
-            data.setdefault('transcript', [])
-            
-            return data
-            
-        except Exception as e:
-            logger.warning(f"Error reading audio file {file_path}: {e}")
-            return None
-    
-    def _parse_audio_filename_timestamp(self, filename: str) -> Optional[datetime]:
-        """Parse timestamp from audio filename (format: auto_YYYYMMDD_HHMMSS.json)."""
-        try:
-            if not filename.endswith('.json'):
-                return None
-            
-            # Remove extension and split
-            parts = filename[:-5].split('_')
-            if len(parts) < 3 or parts[0] != 'auto':
-                return None
-            
-            date_part = parts[1]  # YYYYMMDD
-            time_part = parts[2]  # HHMMSS
-            
-            # Parse date
-            year = date_part[:4]
-            month = date_part[4:6]
-            day = date_part[6:8]
-            
-            # Parse time
-            hour = time_part[:2]
-            minute = time_part[2:4]
-            second = time_part[4:6]
-            
-            # Construct ISO format
-            iso_string = f"{year}-{month}-{day}T{hour}:{minute}:{second}"
-            return datetime.fromisoformat(iso_string)
-            
-        except Exception as e:
-            logger.debug(f"Error parsing audio timestamp from filename {filename}: {e}")
-            return None
-    
     async def search_screenshots(
         self,
         query: str,
@@ -207,14 +138,14 @@ class SearchTool:
         data_type: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Search OCR and audio data.
+        Search OCR data from screenshots.
         
         Args:
             query: Search query
             start_date: Optional start date (YYYY-MM-DD)
             end_date: Optional end date (YYYY-MM-DD)
             limit: Maximum results to return
-            data_type: Filter by type - "ocr", "audio", or None for both
+            data_type: Filter by type - "ocr" or None (kept for API compatibility)
         """
         try:
             logger.info(f"Searching: query='{query}', start_date={start_date}, end_date={end_date}, limit={limit}, data_type={data_type}")
@@ -256,9 +187,9 @@ class SearchTool:
                 end_dt = datetime.fromisoformat(end_date + "T23:59:59")
                 where_filters.append({"timestamp": {"$lte": end_dt.timestamp()}})
             
-            # Add data_type filter
-            if data_type and data_type in ["ocr", "audio"]:
-                where_filters.append({"data_type": data_type})
+            # Add data_type filter (only OCR supported)
+            if data_type and data_type == "ocr":
+                where_filters.append({"data_type": "ocr"})
             
             # Build final where clause
             where_clause = None
@@ -327,7 +258,7 @@ class SearchTool:
         limit: int = 10,
         data_type: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Fallback file-based search (supports both OCR and audio files)."""
+        """Fallback file-based search for OCR files."""
         try:
             logger.info(f"File-based search (fallback): query='{query}', data_type={data_type}")
             
@@ -340,37 +271,22 @@ class SearchTool:
             if end_date:
                 end_dt = datetime.fromisoformat(end_date + "T23:59:59")
             
-            # Get files based on data_type filter
-            all_files = []
-            
-            # Get OCR files if requested
-            if data_type is None or data_type == "ocr":
-                ocr_files = list(self.ocr_data_dir.glob("*.json"))
-                all_files.extend([(f, "ocr") for f in ocr_files])
-            
-            # Get audio files if requested
-            if data_type is None or data_type == "audio":
-                audio_dir = self.workspace_root / "refinery" / "data" / "audio"
-                if audio_dir.exists():
-                    audio_files = list(audio_dir.glob("*.json"))
-                    all_files.extend([(f, "audio") for f in audio_files])
+            # Get OCR files
+            ocr_files = list(self.ocr_data_dir.glob("*.json"))
             
             # Sort by modification time (most recent first)
-            all_files.sort(key=lambda x: x[0].stat().st_mtime, reverse=True)
+            ocr_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
             
             results = []
             processed = 0
             
-            for file_path, file_type in all_files:
+            for file_path in ocr_files:
                 if len(results) >= limit:
                     break
                 
                 try:
                     # Check date filter using filename timestamp
                     file_timestamp = self._parse_filename_timestamp(file_path.name)
-                    if not file_timestamp and file_type == "audio":
-                        # Try parsing audio filename: auto_YYYYMMDD_HHMMSS.json
-                        file_timestamp = self._parse_audio_filename_timestamp(file_path.name)
                     
                     if file_timestamp:
                         if start_dt and file_timestamp < start_dt:
@@ -378,23 +294,13 @@ class SearchTool:
                         if end_dt and file_timestamp > end_dt:
                             continue
                     
-                    # Read file based on type
-                    if file_type == "ocr":
-                        data = self._read_ocr_file(file_path)
-                        if not data:
-                            continue
-                        text = data.get('text', '')
-                        screen_name = data.get("screen_name", "N/A")
-                    else:  # audio
-                        data = self._read_audio_file(file_path)
-                        if not data:
-                            continue
-                        # For audio, use transcript text from markdown file
-                        text = data.get("transcript_text", "")
-                        if not text:
-                            # Fallback to transcript array if available
-                            text = " ".join([t.get("text", "") for t in data.get("transcript", [])])
-                        screen_name = data.get("session_id", "N/A")
+                    # Read OCR file
+                    data = self._read_ocr_file(file_path)
+                    if not data:
+                        continue
+                    
+                    text = data.get('text', '')
+                    screen_name = data.get("screen_name", "N/A")
                     
                     processed += 1
                     
@@ -410,9 +316,9 @@ class SearchTool:
                         preview = self._create_preview(text_lower, query_lower, max_length=200)
                         
                         results.append({
-                            "timestamp": data.get("start_time") if file_type == "audio" else data.get("timestamp"),
+                            "timestamp": data.get("timestamp"),
                             "screen_name": screen_name,
-                            "data_type": file_type,
+                            "data_type": "ocr",
                             "text_length": len(text),
                             "word_count": len(text.split()),
                             "text_preview": preview,
@@ -436,13 +342,13 @@ class SearchTool:
                 "total_found": len(results),
                 "processed_files": processed,
                 "search_method": "file_based_text_search",
-                "data_type_filter": data_type or "all",
+                "data_type_filter": "ocr",
                 "date_range": {
                     "start_date": start_date,
                     "end_date": end_date
                 },
                 "search_summary": {
-                    "total_files_available": len(all_files),
+                    "total_files_available": len(ocr_files),
                     "files_processed": processed,
                     "matches_found": len(results),
                     "search_terms": [query]

@@ -36,7 +36,6 @@ from tools.search import SearchTool
 from tools.stats import StatsTool
 from tools.activity import ActivityTool
 from tools.system import SystemTool
-from tools.website import WebsiteTool
 from tools.sampling import SamplingTool
 from tools.vector_search import VectorSearchTool
 from tools.recent_search import RecentSearchTool
@@ -78,7 +77,6 @@ class FlowMCPServer:
         self.stats_tool = StatsTool(self.workspace_root)
         self.activity_tool = ActivityTool(self.workspace_root)
         self.system_tool = SystemTool(self.workspace_root)
-        self.website_tool = WebsiteTool(self.workspace_root)
         self.sampling_tool = SamplingTool(self.workspace_root)
         self.vector_search_tool = VectorSearchTool(self.workspace_root)
         self.recent_search_tool = RecentSearchTool(self.workspace_root)
@@ -92,10 +90,6 @@ class FlowMCPServer:
             "time-range-summary": self.activity_tool,
             "start-flow": self.system_tool,
             "stop-flow": self.system_tool,
-            "create-webpage": self.website_tool,
-            "list-webpages": self.website_tool,
-            "delete-webpage": self.website_tool,
-            "get-webpage-url": self.website_tool,
             "sample-time-range": self.sampling_tool,
             "vector-search-windowed": self.vector_search_tool,
             "search-recent-relevant": self.recent_search_tool,
@@ -245,94 +239,6 @@ class FlowMCPServer:
             },
         ))
         
-        # Create Webpage
-        tools.append(Tool(
-            name="create-webpage",
-            description="Create a sharable webpage with markdown content and optional Flow search results",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "page_name": {
-                        "type": "string",
-                        "description": "Name for the webpage (will be used in URL, e.g., 'team-update')",
-                    },
-                    "title": {
-                        "type": "string",
-                        "description": "Page title to display",
-                    },
-                    "content": {
-                        "type": "string",
-                        "description": "Markdown content for the page (supports images, videos, code blocks, tables)",
-                    },
-                    "author": {
-                        "type": "string",
-                        "description": "Author name (default: 'Flow User')",
-                        "default": "Flow User",
-                    },
-                    "include_search_results": {
-                        "type": "boolean",
-                        "description": "Whether to include search results in the page",
-                        "default": False,
-                    },
-                    "search_data": {
-                        "type": "object",
-                        "description": "Search results data to include (if include_search_results is true)",
-                    },
-                },
-                "required": ["page_name", "title", "content"],
-                "additionalProperties": False,
-            },
-        ))
-        
-        # List Webpages
-        tools.append(Tool(
-            name="list-webpages",
-            description="List all created webpages with their URLs and metadata",
-            inputSchema={
-                "type": "object",
-                "properties": {},
-                "additionalProperties": False,
-            },
-        ))
-        
-        # Delete Webpage
-        tools.append(Tool(
-            name="delete-webpage",
-            description="Delete a webpage by name",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "page_name": {
-                        "type": "string",
-                        "description": "Name of the webpage to delete",
-                    },
-                },
-                "required": ["page_name"],
-                "additionalProperties": False,
-            },
-        ))
-        
-        # Get Webpage URL
-        tools.append(Tool(
-            name="get-webpage-url",
-            description="Get the local and/or public URL for a webpage",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "page_name": {
-                        "type": "string",
-                        "description": "Name of the webpage",
-                    },
-                    "ngrok_url": {
-                        "type": "string",
-                        "description": "Ngrok URL if the website server is exposed (e.g., 'https://abc123.ngrok.io')",
-                    },
-                },
-                "required": ["page_name"],
-                "additionalProperties": False,
-            },
-        ))
-        
         return tools
     
     async def call_tool(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -372,24 +278,6 @@ class FlowMCPServer:
                 return await tool.start_flow()
             elif name == "stop-flow":
                 return await tool.stop_flow()
-            elif name == "create-webpage":
-                return await tool.create_page(
-                    page_name=arguments["page_name"],
-                    title=arguments["title"],
-                    content=arguments["content"],
-                    author=arguments.get("author", "Flow User"),
-                    include_search_results=arguments.get("include_search_results", False),
-                    search_data=arguments.get("search_data")
-                )
-            elif name == "list-webpages":
-                return await tool.list_pages()
-            elif name == "delete-webpage":
-                return await tool.delete_page(page_name=arguments["page_name"])
-            elif name == "get-webpage-url":
-                return await tool.get_page_url(
-                    page_name=arguments["page_name"],
-                    ngrok_url=arguments.get("ngrok_url")
-                )
             elif name == "sample-time-range":
                 return await tool.sample_time_range(
                     start_time=arguments["start_time"],
