@@ -1,7 +1,0 @@
-
---- Session Summary ---
-Session ID: quick-test
-Start Time: 2025-10-03 13:39:12
-End Time: 2025-10-03 13:57:28
-Duration: 0:18:15.615943
-Total Transcript Entries: 0
