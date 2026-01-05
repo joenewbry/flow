@@ -104,13 +104,13 @@ class FlowMCPServer:
         # Search Screenshots
         tools.append(Tool(
             name="search-screenshots",
-            description="Search OCR and audio data with optional filtering by data type. Searches both screen OCR text and audio transcripts by default.",
+            description="Search OCR data from screenshots with optional filtering by date range.",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "Search query for the OCR text or audio transcript content",
+                        "description": "Search query for the OCR text content",
                     },
                     "start_date": {
                         "type": "string",
@@ -127,8 +127,8 @@ class FlowMCPServer:
                     },
                     "data_type": {
                         "type": "string",
-                        "enum": ["ocr", "audio"],
-                        "description": "Filter by data type: 'ocr' for screen OCR only, 'audio' for audio transcripts only. Omit to search both types (default).",
+                        "enum": ["ocr"],
+                        "description": "Filter by data type: 'ocr' for screen OCR only (kept for API compatibility).",
                     },
                 },
                 "required": ["query"],

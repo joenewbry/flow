@@ -274,20 +274,28 @@ class FlowRunner:
             # Get the most recent timestamp from ChromaDB to optimize sync
             last_sync_timestamp = None
             try:
-                # Get the most recent document by querying with a high limit and sorting
-                # We'll get documents and find the max timestamp
-                result = collection.get(limit=1000)  # Get a sample to find max timestamp
-                if result and result.get('metadatas') and len(result['metadatas']) > 0:
-                    # Find the maximum timestamp from existing documents
-                    timestamps = [
-                        meta.get('timestamp') for meta in result['metadatas']
-                        if meta and 'timestamp' in meta
-                    ]
-                    if timestamps:
-                        last_sync_timestamp = max(timestamps)
-                        logger.info(f"Found existing data in ChromaDB. Most recent timestamp: {datetime.fromtimestamp(last_sync_timestamp).isoformat()}")
+                # Get collection count to determine if we should optimize
+                collection_count = collection.count()
+                
+                if collection_count > 0:
+                    # Get a sample of recent documents to find max timestamp
+                    # We get up to 1000 documents (or all if less) and find the max timestamp
+                    sample_size = min(1000, collection_count)
+                    result = collection.get(limit=sample_size)
+                    
+                    if result and result.get('metadatas') and len(result['metadatas']) > 0:
+                        # Find the maximum timestamp from existing documents
+                        timestamps = [
+                            meta.get('timestamp') for meta in result['metadatas']
+                            if meta and 'timestamp' in meta and isinstance(meta.get('timestamp'), (int, float))
+                        ]
+                        if timestamps:
+                            last_sync_timestamp = max(timestamps)
+                            logger.info(f"Found {collection_count} documents in ChromaDB. Most recent timestamp: {datetime.fromtimestamp(last_sync_timestamp).isoformat()}")
+                        else:
+                            logger.info("ChromaDB collection exists but has no valid timestamp metadata")
                     else:
-                        logger.info("ChromaDB collection exists but has no timestamp metadata")
+                        logger.info("ChromaDB collection is empty or new")
                 else:
                     logger.info("ChromaDB collection is empty or new")
             except Exception as error:
@@ -342,6 +350,17 @@ class FlowRunner:
             max_retries = 3
             retry_delay = 2  # seconds
             
+            # Build a set of existing IDs for faster duplicate checking (only if collection is small)
+            # For large collections, we'll check per document
+            existing_ids_cache = set()
+            try:
+                if last_sync_timestamp is not None:
+                    # If we have a last sync timestamp, we can be more confident about duplicates
+                    # But still check individual IDs to be safe
+                    pass
+            except Exception:
+                pass
+            
             for i in range(0, len(ocr_files), batch_size):
                 batch_files = ocr_files[i:i + batch_size]
                 
@@ -358,10 +377,17 @@ class FlowRunner:
                         # Create document ID
                         doc_id = ocr_data["timestamp"] + "_" + ocr_data["screen_name"]
                         
+                        # Quick check against cache if available
+                        if doc_id in existing_ids_cache:
+                            total_skipped += 1
+                            continue
+                        
                         # Check if already exists (query ChromaDB for this specific ID)
+                        # We still do this check even with timestamp filtering to handle edge cases
                         try:
                             existing = collection.get(ids=[doc_id])
                             if existing and existing.get('ids') and len(existing['ids']) > 0:
+                                existing_ids_cache.add(doc_id)
                                 total_skipped += 1
                                 continue
                         except Exception:
