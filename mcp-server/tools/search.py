@@ -251,10 +251,10 @@ class SearchTool:
             # Add date filters
             if start_date:
                 start_dt = datetime.fromisoformat(start_date + "T00:00:00")
-                where_filters.append({"timestamp": {"$gte": start_dt.isoformat()}})
+                where_filters.append({"timestamp": {"$gte": start_dt.timestamp()}})
             if end_date:
                 end_dt = datetime.fromisoformat(end_date + "T23:59:59")
-                where_filters.append({"timestamp": {"$lte": end_dt.isoformat()}})
+                where_filters.append({"timestamp": {"$lte": end_dt.timestamp()}})
             
             # Add data_type filter
             if data_type and data_type in ["ocr", "audio"]:
@@ -290,7 +290,7 @@ class SearchTool:
                     text_preview = metadata.get("extracted_text", doc)[:200]
                     
                     results.append({
-                        "timestamp": metadata.get("timestamp", ""),
+                        "timestamp": metadata.get("timestamp_iso", metadata.get("timestamp", "")),
                         "screen_name": metadata.get("screen_name", "N/A"),
                         "data_type": metadata.get("data_type", "unknown"),  # Include data_type tag
                         "text_length": metadata.get("text_length", 0),

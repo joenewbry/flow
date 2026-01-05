@@ -145,7 +145,7 @@ class RecentSearchTool:
                         query_texts=[query],
                         n_results=max_results * 2,  # Get more to filter by combined score
                         where={
-                            "timestamp": {"$gte": start_time.isoformat()}
+                            "timestamp": {"$gte": start_time.timestamp()}
                         }
                     )
                     
@@ -160,7 +160,7 @@ class RecentSearchTool:
                             relevance = max(0, 1 - distance)
                             
                             # Calculate recency score
-                            timestamp = metadata.get("timestamp", "")
+                            timestamp = metadata.get("timestamp_iso", metadata.get("timestamp", ""))
                             recency = self._calculate_recency_score(timestamp, max_days)
                             
                             # Calculate combined score

@@ -18,10 +18,7 @@ I use it with Claude.
 
 ![Example Usage](images/Flow%20Example.png)
 
-The entire codebase is in pre-release. And it's packed with a bunch of other interesting tools:
-
-- Background audio recording 
-- Simple website creation backed by human readable markdown files and sharable over ngrok
+The entire codebase is in pre-release.
 
 ## 🚀 Quick Start
 
@@ -553,6 +550,20 @@ curl http://localhost:8000/api/v1/heartbeat
 # Restart ChromaDB
 cd refinery && chroma run --host localhost --port 8000
 ```
+
+#### ChromaDB Segmentation Fault When Loading Data
+If ChromaDB crashes with a segmentation fault when loading large amounts of JSON screenshot data:
+
+1. **Use the standalone loading script** (recommended for 10,000+ files):
+   ```bash
+   cd refinery
+   source .venv/bin/activate
+   python load_ocr_data.py --batch-size 5 --delay 1.0
+   ```
+
+2. **The improved loading function** now uses smaller batches and delays automatically
+
+3. **See detailed guide**: `CHROMA_SEGFAULT_FIX.md` for troubleshooting and recovery
 
 #### Screen Capture Not Working
 ```bash

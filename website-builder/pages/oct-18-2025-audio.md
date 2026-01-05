@@ -30,3 +30,5 @@ The system successfully made HTTP requests to the OpenAI transcription API:
 **Note:** The actual content of your audio conversations is stored in the audio transcript files in your Flow data directory. This summary is based on metadata visible in screen captures. For full conversation details, you can access the transcript files directly at `refinery/data/audio/`.
 
 *Generated from Flow screen capture metadata*
+
+

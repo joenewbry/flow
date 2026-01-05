@@ -122,8 +122,8 @@ class VectorSearchTool:
                         n_results=1,  # Get top result per window
                         where={
                             "$and": [
-                                {"timestamp": {"$gte": window["start"].isoformat()}},
-                                {"timestamp": {"$lt": window["end"].isoformat()}}
+                                {"timestamp": {"$gte": window["start"].timestamp()}},
+                                {"timestamp": {"$lt": window["end"].timestamp()}}
                             ]
                         }
                     )
@@ -140,7 +140,7 @@ class VectorSearchTool:
                         if relevance >= min_relevance:
                             results.append({
                                 "text": doc,
-                                "timestamp": metadata.get("timestamp", ""),
+                                "timestamp": metadata.get("timestamp_iso", metadata.get("timestamp", "")),
                                 "screen_name": metadata.get("screen_name", "unknown"),
                                 "relevance_score": round(relevance, 3),
                                 "window_start": window["start"].isoformat(),

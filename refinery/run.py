@@ -155,8 +155,12 @@ class FlowRunner:
             content = f"Screen: {ocr_data['screen_name']} Text: {ocr_data['text']}"
             
             # Prepare metadata
+            # Convert timestamp to Unix timestamp for ChromaDB filtering
+            timestamp_dt = datetime.fromisoformat(ocr_data["timestamp"])
+            
             metadata = {
-                "timestamp": ocr_data["timestamp"],
+                "timestamp": timestamp_dt.timestamp(),  # Unix timestamp (float) for filtering
+                "timestamp_iso": ocr_data["timestamp"],  # ISO string for display
                 "screen_name": ocr_data["screen_name"],
                 "text_length": ocr_data["text_length"],
                 "word_count": ocr_data["word_count"],
@@ -194,8 +198,12 @@ class FlowRunner:
             content = f"Screen: {ocr_data['screen_name']} Text: {ocr_data['text']}"
             
             # Prepare metadata
+            # Convert timestamp to Unix timestamp for ChromaDB filtering
+            timestamp_dt = datetime.fromisoformat(ocr_data["timestamp"])
+            
             metadata = {
-                "timestamp": ocr_data["timestamp"],
+                "timestamp": timestamp_dt.timestamp(),  # Unix timestamp (float) for filtering
+                "timestamp_iso": ocr_data["timestamp"],  # ISO string for display
                 "screen_name": ocr_data["screen_name"],
                 "text_length": ocr_data["text_length"],
                 "word_count": ocr_data["word_count"],
@@ -241,6 +249,14 @@ class FlowRunner:
                 
                 client = chromadb.HttpClient(host="localhost", port=8000)
                 
+                # Test connection with heartbeat
+                try:
+                    client.heartbeat()
+                except Exception as hb_error:
+                    logger.warning(f"ChromaDB heartbeat failed: {hb_error}")
+                    logger.info("OCR files are safely stored as JSON files and can be loaded when ChromaDB is available")
+                    return
+                
                 # Get or create the screen_ocr_history collection
                 collection = client.get_or_create_collection(
                     name="screen_ocr_history",
@@ -256,26 +272,32 @@ class FlowRunner:
                 logger.info("OCR files are safely stored as JSON files and can be loaded when ChromaDB is available")
                 return
             
-            # Get existing document IDs to avoid duplicates
+            # Get existing document IDs to avoid duplicates - do this in chunks to avoid memory issues
+            existing_ids = set()
             try:
-                existing_ids = set()
-                # Try to get existing documents (this may fail if collection is empty)
+                # For large collections, get IDs in chunks
                 try:
-                    result = collection.get()
+                    # Try to get a sample first to see if collection has data
+                    result = collection.get(limit=1)
                     if result and result.get('ids'):
-                        existing_ids = set(result['ids'])
-                        logger.info(f"Found {len(existing_ids)} existing documents in ChromaDB")
+                        # Collection has data, but we'll check IDs per batch instead of loading all
+                        logger.info("ChromaDB collection has existing data - will check IDs per batch")
+                    else:
+                        logger.info("ChromaDB collection is empty or new")
                 except Exception:
-                    # Collection might be empty, which is fine
                     logger.info("ChromaDB collection is empty or new")
             except Exception as error:
                 logger.warning(f"Could not check existing documents: {error}")
                 existing_ids = set()
             
-            # Process files in batches to avoid memory issues
-            batch_size = 50
+            # Process files in smaller batches to avoid overwhelming ChromaDB
+            # Reduced batch size to prevent segmentation faults
+            batch_size = 10
             total_loaded = 0
             total_skipped = 0
+            total_errors = 0
+            max_retries = 3
+            retry_delay = 2  # seconds
             
             for i in range(0, len(ocr_files), batch_size):
                 batch_files = ocr_files[i:i + batch_size]
@@ -284,6 +306,7 @@ class FlowRunner:
                 metadatas = []
                 ids = []
                 
+                # Process files in this batch
                 for file_path in batch_files:
                     try:
                         with open(file_path, 'r', encoding='utf-8') as f:
@@ -292,17 +315,26 @@ class FlowRunner:
                         # Create document ID
                         doc_id = ocr_data["timestamp"] + "_" + ocr_data["screen_name"]
                         
-                        # Skip if already exists
-                        if doc_id in existing_ids:
-                            total_skipped += 1
-                            continue
+                        # Check if already exists (query ChromaDB for this specific ID)
+                        try:
+                            existing = collection.get(ids=[doc_id])
+                            if existing and existing.get('ids') and len(existing['ids']) > 0:
+                                total_skipped += 1
+                                continue
+                        except Exception:
+                            # If check fails, proceed with adding (might be a new document)
+                            pass
                         
                         # Prepare content for embedding
                         content = f"Screen: {ocr_data['screen_name']} Text: {ocr_data['text']}"
                         
                         # Prepare metadata
+                        # Convert timestamp to Unix timestamp for ChromaDB filtering
+                        timestamp_dt = datetime.fromisoformat(ocr_data["timestamp"])
+                        
                         metadata = {
-                            "timestamp": ocr_data["timestamp"],
+                            "timestamp": timestamp_dt.timestamp(),  # Unix timestamp (float) for filtering
+                            "timestamp_iso": ocr_data["timestamp"],  # ISO string for display
                             "screen_name": ocr_data["screen_name"],
                             "text_length": ocr_data["text_length"],
                             "word_count": ocr_data["word_count"],
@@ -318,22 +350,53 @@ class FlowRunner:
                         
                     except Exception as error:
                         logger.error(f"Error processing file {file_path}: {error}")
+                        total_errors += 1
                         continue
                 
-                # Bulk add documents to ChromaDB
+                # Bulk add documents to ChromaDB with retry logic
                 if documents:
-                    try:
-                        collection.add(
-                            documents=documents,
-                            metadatas=metadatas,
-                            ids=ids
-                        )
-                        total_loaded += len(documents)
-                        logger.info(f"Loaded batch of {len(documents)} documents (progress: {i + len(batch_files)}/{len(ocr_files)})")
-                    except Exception as error:
-                        logger.error(f"Error adding batch to ChromaDB: {error}")
+                    retry_count = 0
+                    success = False
+                    
+                    while retry_count < max_retries and not success:
+                        try:
+                            # Check ChromaDB server health before adding
+                            try:
+                                client.heartbeat()
+                            except Exception as hb_error:
+                                logger.warning(f"ChromaDB heartbeat failed, waiting {retry_delay}s before retry: {hb_error}")
+                                await asyncio.sleep(retry_delay)
+                                retry_count += 1
+                                continue
+                            
+                            collection.add(
+                                documents=documents,
+                                metadatas=metadatas,
+                                ids=ids
+                            )
+                            total_loaded += len(documents)
+                            success = True
+                            
+                            # Log progress every 100 files or at end
+                            progress = i + len(batch_files)
+                            if progress % 100 == 0 or progress >= len(ocr_files):
+                                logger.info(f"Loaded batch of {len(documents)} documents (progress: {progress}/{len(ocr_files)}, total loaded: {total_loaded}, skipped: {total_skipped})")
+                            
+                        except Exception as error:
+                            retry_count += 1
+                            if retry_count < max_retries:
+                                logger.warning(f"Error adding batch to ChromaDB (attempt {retry_count}/{max_retries}): {error}")
+                                logger.info(f"Waiting {retry_delay * retry_count}s before retry...")
+                                await asyncio.sleep(retry_delay * retry_count)  # Exponential backoff
+                            else:
+                                logger.error(f"Failed to add batch after {max_retries} attempts: {error}")
+                                total_errors += len(documents)
+                    
+                    # Small delay between batches to avoid overwhelming ChromaDB
+                    if i + batch_size < len(ocr_files):
+                        await asyncio.sleep(0.5)  # 500ms delay between batches
             
-            logger.info(f"Bulk loading complete: {total_loaded} documents loaded, {total_skipped} skipped (already existed)")
+            logger.info(f"Bulk loading complete: {total_loaded} documents loaded, {total_skipped} skipped (already existed), {total_errors} errors")
             
         except Exception as error:
             logger.warning(f"Error in bulk loading existing OCR data: {error}")
@@ -464,20 +527,59 @@ async def main():
     root_logger.addHandler(file_handler)
     root_logger.addHandler(console_handler)
     
+    # Flag to track shutdown
+    shutdown_event = asyncio.Event()
+    
     # Handle shutdown signals
     def signal_handler(signum, frame):
         logger.info("Received shutdown signal")
-        asyncio.create_task(flow_runner.stop())
+        # Set the shutdown event to break the main loop
+        shutdown_event.set()
+        # Also stop the flow runner
+        flow_runner.is_running = False
     
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     
     try:
-        await flow_runner.start()
+        # Start the flow runner in a background task
+        runner_task = asyncio.create_task(flow_runner.start())
+        
+        # Wait for either shutdown signal or runner to complete
+        done, pending = await asyncio.wait(
+            [runner_task, asyncio.create_task(shutdown_event.wait())],
+            return_when=asyncio.FIRST_COMPLETED
+        )
+        
+        # If shutdown was triggered, stop the runner
+        if shutdown_event.is_set():
+            logger.info("Shutdown signal received, stopping Flow Runner...")
+            await flow_runner.stop()
+            
+            # Cancel the runner task if it's still running
+            if not runner_task.done():
+                runner_task.cancel()
+                try:
+                    await runner_task
+                except asyncio.CancelledError:
+                    pass
+            
+            # Cancel any pending tasks
+            for task in pending:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+        
+        logger.info("Flow Runner service stopped")
+        
     except KeyboardInterrupt:
         logger.info("Interrupted by user")
+        await flow_runner.stop()
     except Exception as error:
         logger.error(f"Fatal error: {error}")
+        await flow_runner.stop()
         return 1
     
     return 0
