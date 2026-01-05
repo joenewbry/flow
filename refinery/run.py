@@ -228,18 +228,17 @@ class FlowRunner:
             # Don't re-raise the exception - OCR data is safely stored in JSON files
     
     async def load_existing_ocr_data(self):
-        """Load existing OCR data from refinery/data/ocr directory into ChromaDB."""
+        """Load existing OCR data from refinery/data/ocr directory into ChromaDB.
+        Optimized to only process files newer than the most recent sync timestamp."""
         try:
             logger.info("Checking for existing OCR data to load...")
             
             # Get all JSON files from the OCR data directory
-            ocr_files = glob.glob(str(self.ocr_data_dir / "*.json"))
+            all_ocr_files = glob.glob(str(self.ocr_data_dir / "*.json"))
             
-            if not ocr_files:
+            if not all_ocr_files:
                 logger.info("No existing OCR data found")
                 return
-            
-            logger.info(f"Found {len(ocr_files)} existing OCR files to process")
             
             # Try to initialize ChromaDB client for bulk operations
             try:
@@ -272,23 +271,67 @@ class FlowRunner:
                 logger.info("OCR files are safely stored as JSON files and can be loaded when ChromaDB is available")
                 return
             
-            # Get existing document IDs to avoid duplicates - do this in chunks to avoid memory issues
-            existing_ids = set()
+            # Get the most recent timestamp from ChromaDB to optimize sync
+            last_sync_timestamp = None
             try:
-                # For large collections, get IDs in chunks
-                try:
-                    # Try to get a sample first to see if collection has data
-                    result = collection.get(limit=1)
-                    if result and result.get('ids'):
-                        # Collection has data, but we'll check IDs per batch instead of loading all
-                        logger.info("ChromaDB collection has existing data - will check IDs per batch")
+                # Get the most recent document by querying with a high limit and sorting
+                # We'll get documents and find the max timestamp
+                result = collection.get(limit=1000)  # Get a sample to find max timestamp
+                if result and result.get('metadatas') and len(result['metadatas']) > 0:
+                    # Find the maximum timestamp from existing documents
+                    timestamps = [
+                        meta.get('timestamp') for meta in result['metadatas']
+                        if meta and 'timestamp' in meta
+                    ]
+                    if timestamps:
+                        last_sync_timestamp = max(timestamps)
+                        logger.info(f"Found existing data in ChromaDB. Most recent timestamp: {datetime.fromtimestamp(last_sync_timestamp).isoformat()}")
                     else:
-                        logger.info("ChromaDB collection is empty or new")
-                except Exception:
+                        logger.info("ChromaDB collection exists but has no timestamp metadata")
+                else:
                     logger.info("ChromaDB collection is empty or new")
             except Exception as error:
-                logger.warning(f"Could not check existing documents: {error}")
-                existing_ids = set()
+                logger.debug(f"Could not determine last sync timestamp (will process all files): {error}")
+                last_sync_timestamp = None
+            
+            # Filter files to only process those newer than last sync (or all if no sync exists)
+            ocr_files = []
+            if last_sync_timestamp is not None:
+                # Parse file timestamps and filter
+                for file_path in all_ocr_files:
+                    try:
+                        # Read timestamp from file
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            ocr_data = json.load(f)
+                        
+                        timestamp_str = ocr_data.get("timestamp")
+                        if timestamp_str:
+                            timestamp_dt = datetime.fromisoformat(timestamp_str)
+                            file_timestamp = timestamp_dt.timestamp()
+                            
+                            # Only include files newer than last sync
+                            if file_timestamp > last_sync_timestamp:
+                                ocr_files.append((file_path, file_timestamp))
+                    except Exception as error:
+                        # If we can't parse the file, include it to be safe
+                        logger.debug(f"Could not parse timestamp from {file_path}, will process it: {error}")
+                        ocr_files.append((file_path, 0))
+                
+                # Sort by timestamp (oldest first)
+                ocr_files.sort(key=lambda x: x[1])
+                ocr_files = [f[0] for f in ocr_files]  # Extract just file paths
+                
+                skipped_count = len(all_ocr_files) - len(ocr_files)
+                if skipped_count > 0:
+                    logger.info(f"Optimization: Skipping {skipped_count} files already synced (only processing {len(ocr_files)} new files)")
+            else:
+                # No existing data, process all files
+                ocr_files = all_ocr_files
+                logger.info(f"Found {len(ocr_files)} OCR files to process (first sync)")
+            
+            if not ocr_files:
+                logger.info("All OCR files are already synced to ChromaDB")
+                return
             
             # Process files in smaller batches to avoid overwhelming ChromaDB
             # Reduced batch size to prevent segmentation faults
