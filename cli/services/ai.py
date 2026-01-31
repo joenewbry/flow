@@ -228,7 +228,14 @@ class AIService:
         on_tool_result: Optional[Callable],
     ) -> Generator[StreamEvent, None, None]:
         """Stream response from Anthropic."""
-        import anthropic
+        try:
+            import anthropic
+        except ImportError:
+            yield StreamEvent(
+                type="error",
+                content="Anthropic package not installed. Run: pip install anthropic"
+            )
+            return
 
         api_key = get_api_key("anthropic")
         client = anthropic.Anthropic(api_key=api_key)
@@ -365,7 +372,14 @@ Be concise but thorough. If you can't find something, say so."""
         on_tool_result: Optional[Callable],
     ) -> Generator[StreamEvent, None, None]:
         """Stream response from OpenAI."""
-        import openai
+        try:
+            import openai
+        except ImportError:
+            yield StreamEvent(
+                type="error",
+                content="OpenAI package not installed. Run: pip install openai"
+            )
+            return
 
         api_key = get_api_key("openai")
         client = openai.OpenAI(api_key=api_key)
