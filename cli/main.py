@@ -54,7 +54,7 @@ def main(
 
 
 # Import and register commands
-from cli.commands import status, doctor, stats, search, start, stop, watch, sync
+from cli.commands import status, doctor, stats, search, start, stop, watch, sync, config
 
 app.command()(status.status)
 app.command()(doctor.doctor)
@@ -64,6 +64,7 @@ app.command()(start.start)
 app.command()(stop.stop)
 app.command()(watch.watch)
 app.command()(sync.sync)
+app.add_typer(config.app, name="config")
 
 
 if __name__ == "__main__":
