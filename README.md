@@ -13,7 +13,7 @@ I use it with Claude.
 - Can you summarize what I worked on yesterday?
 - Please create onboarding documentation for the Centurion Project that I worked on in March 2025.
 
-**It's designed for Claude (or any other MCP frontend)**
+**It's designed for Claude Desktop, Cursor, or any other MCP frontend**
 
 The entire codebase is in pre-release.
 
@@ -46,7 +46,97 @@ source .venv/bin/activate && python run.py
 
 ---
 
-## 🤖 Claude Desktop Integration
+## 💻 Memex CLI
+
+Memex is a command-line interface for Flow that lets you search your screen history directly from the terminal, with optional AI-powered natural language queries.
+
+### Installation
+
+```bash
+# Add to your PATH (add this line to ~/.zshrc or ~/.bashrc)
+export PATH="$HOME/dev/flow/bin:$PATH"
+
+# Reload your shell
+source ~/.zshrc
+```
+
+### Basic Commands
+
+```bash
+memex status          # Quick health check - is everything running?
+memex doctor          # Full system diagnostics
+memex stats           # Activity statistics (screenshots today, etc.)
+memex search "query"  # Direct text search
+```
+
+### AI-Powered Search (Optional)
+
+The `memex ask` command uses AI to search your screen history with natural language and streaming responses.
+
+**1. Install AI dependencies:**
+
+```bash
+# For Anthropic (Claude)
+pip install anthropic
+
+# For OpenAI (GPT-4)
+pip install openai
+
+# Or install all CLI dependencies
+pip install -r ~/dev/flow/cli/requirements.txt
+```
+
+**2. Configure your API key:**
+
+```bash
+memex auth login
+```
+
+This will prompt you to select a provider (Anthropic or OpenAI) and enter your API key. Keys are stored securely in `~/.memex/credentials.json`.
+
+Alternatively, set environment variables:
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."
+# or
+export OPENAI_API_KEY="sk-..."
+```
+
+**3. Ask questions:**
+
+```bash
+memex ask "What was I working on yesterday?"
+memex ask "Find any mentions of the API bug"
+memex ask "Summarize my activity this week"
+```
+
+The AI will:
+- Search your screenshot history using semantic search
+- Show tool calls as they happen
+- Stream the response token-by-token
+
+### All CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `memex status` | Quick health check |
+| `memex doctor` | Full system diagnostics with fix suggestions |
+| `memex stats` | Activity statistics and charts |
+| `memex ask` | AI-powered natural language search |
+| `memex search` | Direct text search |
+| `memex start` | Start capture daemon |
+| `memex stop` | Stop capture daemon |
+| `memex watch` | Live view of captures |
+| `memex auth` | Manage API keys |
+| `memex config` | View/edit settings |
+| `memex sync` | Sync OCR files to ChromaDB |
+
+---
+
+## 🤖 MCP Client Integration
+
+Flow works with any MCP-compatible client. Choose your setup below:
+
+### Option 1: Claude Desktop (Local)
 
 **Configure Claude Desktop:**
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
@@ -70,13 +160,41 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 📖 **Configuration Guide:** See [Claude's MCP documentation](https://modelcontextprotocol.io/quickstart/user) for more details.
 
+### Option 2: Cursor (Remote via NGROK)
+
+**Prerequisites:**
+- Flow HTTP server running (see NGROK Remote Access section below)
+- NGROK tunnel active
+
+**Configure Cursor:**
+Edit `~/.cursor/mcp.json` (create if it doesn't exist):
+```json
+{
+  "mcpServers": {
+    "Memex": {
+      "url": "https://YOUR_NGROK_URL.ngrok-free.dev/sse"
+    }
+  }
+}
+```
+
+**Setup steps:**
+1. Start the Flow HTTP server (see NGROK section below)
+2. Start NGROK tunnel pointing to port 8082
+3. Copy your NGROK URL (e.g., `https://abc123xyz.ngrok-free.dev`)
+4. Create or edit `~/.cursor/mcp.json` with the configuration above
+5. Replace `YOUR_NGROK_URL.ngrok-free.dev` with your actual NGROK URL
+6. Restart Cursor
+
+**Note:** The `/sse` endpoint is required for Cursor's MCP client. The HTTP server includes both SSE and standard HTTP endpoints.
+
 ---
 
 ## 🔍 Using Flow
 
-### MCP Tools in Claude Desktop
+### MCP Tools in Claude Desktop or Cursor
 
-Once Flow is running, you can query your screen history through Claude Desktop using natural language:
+Once Flow is running, you can query your screen history through Claude Desktop or Cursor using natural language:
 
 **Example queries:**
 - "Find the GitHub repository I was looking at yesterday"
@@ -105,31 +223,80 @@ Flow uses **vector-based semantic search**, which means:
 
 ---
 
-## 🌐 NGROK Setup (Optional)
+## 🌐 NGROK Remote Access (Required for Cursor)
 
-To expose your MCP server via NGROK for remote access:
+To expose your MCP server via NGROK for remote access (required for Cursor, optional for Claude Desktop on a second computer):
 
-1. **Install ngrok:**
+### 1. Install and Configure NGROK
+
 ```bash
+# Install ngrok
 brew install ngrok/ngrok/ngrok
+
+# Get your auth token from https://dashboard.ngrok.com/get-started/your-authtoken
 ngrok config add-authtoken YOUR_AUTH_TOKEN
 ```
 
-2. **Start HTTP MCP Server:**
+### 2. Start HTTP MCP Server
+
+On your **primary computer** (where Flow is running):
+
 ```bash
 cd mcp-server
-python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
 python http_server.py --port 8082
 ```
 
-3. **Expose via ngrok:**
+Keep this terminal open - the server needs to stay running.
+
+### 3. Expose via NGROK
+
+In a **new terminal** on your primary computer:
+
 ```bash
 ngrok http 8082
 ```
 
-4. **Update Claude Desktop config** to use the ngrok URL for remote access.
+Copy the forwarding URL (e.g., `https://abc123xyz.ngrok-free.app`). This is your public NGROK URL.
+
+### 4. Connect from Remote Computer or Cursor
+
+**For Cursor (on the same or different computer):**
+
+Edit `~/.cursor/mcp.json`:
+```json
+{
+  "mcpServers": {
+    "Memex": {
+      "url": "https://YOUR_NGROK_URL.ngrok-free.dev/sse"
+    }
+  }
+}
+```
+
+Replace `YOUR_NGROK_URL.ngrok-free.dev` with your actual NGROK URL. The `/sse` endpoint is required for Cursor.
+
+**For Claude Desktop on a second computer:**
+
+If Claude Desktop supports HTTP transport, add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+```json
+{
+  "mcpServers": {
+    "flow-remote": {
+      "url": "https://YOUR_NGROK_URL.ngrok-free.app/mcp",
+      "transport": "http"
+    }
+  }
+}
+```
+
+**For Gemini:**
+
+Configure Gemini's MCP settings to point to your NGROK URL: `https://YOUR_NGROK_URL.ngrok-free.app/mcp`
+
+**Note:** Free tier NGROK URLs change each time you restart. For a stable URL, consider upgrading to a paid plan.
+
+**Security:** The current setup has no authentication. Consider adding API key authentication or using NGROK's basic auth: `ngrok http 8082 --basic-auth="username:password"`
 
 ---
 
@@ -166,11 +333,17 @@ tesseract --version
 
 ### MCP Server Issues
 ```bash
-# Test MCP server directly
+# Test MCP server directly (stdio mode)
 cd mcp-server && python server.py
+
+# Test HTTP server
+cd mcp-server && python http_server.py --port 8082
 
 # Check Claude Desktop logs
 # macOS: ~/Library/Logs/Claude/
+
+# Check Cursor MCP connection
+# Look for connection errors in Cursor's MCP server panel
 ```
 
 ---
