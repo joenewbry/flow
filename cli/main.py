@@ -54,12 +54,16 @@ def main(
 
 
 # Import and register commands
-from cli.commands import status, doctor, stats, search
+from cli.commands import status, doctor, stats, search, start, stop, watch, sync
 
 app.command()(status.status)
 app.command()(doctor.doctor)
 app.command()(stats.stats)
 app.command()(search.search)
+app.command()(start.start)
+app.command()(stop.stop)
+app.command()(watch.watch)
+app.command()(sync.sync)
 
 
 if __name__ == "__main__":
