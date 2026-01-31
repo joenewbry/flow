@@ -1,0 +1,66 @@
+"""Memex CLI - Main application entry point."""
+
+import typer
+from rich.console import Console
+
+from cli import __version__
+from cli.display.components import print_logo
+
+app = typer.Typer(
+    name="memex",
+    help="Your digital memory - search and analyze your screen history.",
+    no_args_is_help=False,
+    add_completion=True,
+)
+console = Console()
+
+
+def version_callback(value: bool):
+    if value:
+        console.print(f"memex version {__version__}")
+        raise typer.Exit()
+
+
+@app.callback(invoke_without_command=True)
+def main(
+    ctx: typer.Context,
+    version: bool = typer.Option(
+        False,
+        "--version",
+        "-v",
+        help="Show version and exit.",
+        callback=version_callback,
+        is_eager=True,
+    ),
+):
+    """Memex - Your digital memory."""
+    if ctx.invoked_subcommand is None:
+        print_logo()
+        console.print()
+        console.print("Usage: memex [command] [options]")
+        console.print()
+        console.print("Commands:")
+        console.print("  status    Quick health check")
+        console.print("  doctor    Full system diagnostics")
+        console.print("  stats     Activity statistics")
+        console.print("  search    Search your history")
+        console.print("  start     Start capture daemon")
+        console.print("  stop      Stop capture daemon")
+        console.print("  watch     Live capture view")
+        console.print("  config    View/edit settings")
+        console.print("  sync      Sync files to database")
+        console.print()
+        console.print("Run 'memex <command> --help' for command details.")
+
+
+# Import and register commands
+from cli.commands import status, doctor, stats, search
+
+app.command()(status.status)
+app.command()(doctor.doctor)
+app.command()(stats.stats)
+app.command()(search.search)
+
+
+if __name__ == "__main__":
+    app()
