@@ -10,6 +10,7 @@ from cli.display.components import (
     format_bytes,
     format_number,
 )
+from cli.display.colors import COLORS
 from cli.services.health import HealthService
 
 console = Console()
@@ -20,18 +21,35 @@ def status():
     print_header("Status")
 
     health = HealthService()
+    settings = health.settings
 
-    # Check capture process
-    capture = health.check_capture_process()
-    if capture.running:
+    # Check capture - based on recent activity, not just process
+    latest = health.get_latest_capture_time()
+    capture_active = False
+    if latest:
+        seconds_since_capture = (datetime.now() - latest).total_seconds()
+        # Consider active if capture happened within 2x the interval
+        capture_active = seconds_since_capture < (settings.capture_interval * 2)
+
+    if capture_active:
         print_status_line(
             "Capture",
             StatusIndicator.RUNNING,
-            "Running",
-            f"pid {capture.pid}",
+            "Active",
+            f"every {settings.capture_interval}s",
         )
     else:
-        print_status_line("Capture", StatusIndicator.STOPPED, "Stopped")
+        # Check if process is running but no recent captures
+        capture_process = health.check_capture_process()
+        if capture_process.running:
+            print_status_line(
+                "Capture",
+                StatusIndicator.WARNING,
+                "Running",
+                f"pid {capture_process.pid} (no recent captures)",
+            )
+        else:
+            print_status_line("Capture", StatusIndicator.STOPPED, "Stopped")
 
     # Check ChromaDB
     chroma = health.check_chroma_server()
