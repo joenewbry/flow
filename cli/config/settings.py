@@ -1,13 +1,16 @@
 """Settings and configuration for Memex CLI."""
 
 import os
+import json
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Literal
 
 # Determine the project root (where this repo is located)
 CLI_DIR = Path(__file__).parent.parent
 PROJECT_ROOT = CLI_DIR.parent
+
+AIProvider = Literal["anthropic", "openai"]
 
 
 @dataclass
@@ -28,6 +31,11 @@ class Settings:
 
     # Capture settings
     capture_interval: int = 60  # seconds
+
+    # AI settings
+    ai_provider: AIProvider = "anthropic"
+    anthropic_model: str = "claude-sonnet-4-20250514"
+    openai_model: str = "gpt-4o"
 
     # Config file location
     config_dir: Path = field(default_factory=lambda: Path.home() / ".memex")

@@ -43,10 +43,12 @@ def main(
         console.print("  status    Quick health check")
         console.print("  doctor    Full system diagnostics")
         console.print("  stats     Activity statistics")
-        console.print("  search    Search your history")
+        console.print("  [bold]ask[/bold]       AI-powered search (streaming)")
+        console.print("  search    Direct text search")
         console.print("  start     Start capture daemon")
         console.print("  stop      Stop capture daemon")
         console.print("  watch     Live capture view")
+        console.print("  auth      Manage API keys")
         console.print("  config    View/edit settings")
         console.print("  sync      Sync files to database")
         console.print()
@@ -54,17 +56,19 @@ def main(
 
 
 # Import and register commands
-from cli.commands import status, doctor, stats, search, start, stop, watch, sync, config
+from cli.commands import status, doctor, stats, search, start, stop, watch, sync, config, auth, ask
 
 app.command()(status.status)
 app.command()(doctor.doctor)
 app.command()(stats.stats)
 app.command()(search.search)
+app.command()(ask.ask)
 app.command()(start.start)
 app.command()(stop.stop)
 app.command()(watch.watch)
 app.command()(sync.sync)
 app.add_typer(config.app, name="config")
+app.add_typer(auth.app, name="auth")
 
 
 if __name__ == "__main__":
