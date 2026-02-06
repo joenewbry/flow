@@ -5,7 +5,7 @@ Finds most recent and relevant information combining vector search with recency 
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import sys
@@ -14,6 +14,11 @@ import sys
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 logger = logging.getLogger(__name__)
+
+
+def now() -> datetime:
+    """Get current timezone-aware datetime in local timezone."""
+    return datetime.now().astimezone()
 
 
 class RecentSearchTool:
@@ -56,8 +61,8 @@ class RecentSearchTool:
         """
         try:
             dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
-            now = datetime.now()
-            age_days = (now - dt).total_seconds() / 86400  # Convert to days
+            current_time = now()
+            age_days = (current_time - dt).total_seconds() / 86400  # Convert to days
             
             if age_days < 0:
                 return 1.0  # Future date (shouldn't happen)
@@ -127,14 +132,14 @@ class RecentSearchTool:
                     "results": []
                 }
             
-            now = datetime.now()
+            current_time = now()
             all_results = []
             search_windows = []
             current_days = initial_days
             
             # Expanding window search
             while current_days <= max_days and len(all_results) < max_results:
-                start_time = now - timedelta(days=current_days)
+                start_time = current_time - timedelta(days=current_days)
                 
                 logger.info(f"Searching last {current_days} days...")
                 search_windows.append(current_days)

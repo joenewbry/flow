@@ -12,8 +12,9 @@ from pathlib import Path
 from typing import Any, Dict
 import argparse
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 import uvicorn
 
 # Add parent directory to path for imports
@@ -41,6 +42,9 @@ app.add_middleware(
 
 # Initialize Flow MCP server
 flow_server = None
+
+# Store active SSE connections
+active_connections = {}
 
 
 @app.on_event("startup")
@@ -163,6 +167,209 @@ async def mcp_endpoint(request: Request):
     except Exception as e:
         logger.error(f"Error handling MCP request: {e}")
         return {
+            "error": {
+                "code": -32603,
+                "message": str(e)
+            }
+        }
+
+
+@app.get("/sse")
+async def sse_endpoint(request: Request):
+    """
+    Server-Sent Events endpoint for MCP protocol over HTTP.
+    Cursor uses this for streaming MCP communication.
+    """
+    import uuid
+    connection_id = str(uuid.uuid4())
+    
+    async def event_generator():
+        try:
+            # Send initial connection message
+            yield f"data: {json.dumps({'type': 'connection', 'id': connection_id})}\n\n"
+            
+            # Store connection
+            active_connections[connection_id] = {
+                "queue": asyncio.Queue(),
+                "initialized": False
+            }
+            
+            # Send initialization response
+            init_response = {
+                "jsonrpc": "2.0",
+                "id": None,
+                "result": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {
+                        "tools": {}
+                    },
+                    "serverInfo": {
+                        "name": "flow",
+                        "version": "1.0.0"
+                    }
+                }
+            }
+            yield f"data: {json.dumps(init_response)}\n\n"
+            active_connections[connection_id]["initialized"] = True
+            
+            # Send tools list
+            tools = await flow_server.list_tools()
+            tools_response = {
+                "jsonrpc": "2.0",
+                "id": None,
+                "result": {
+                    "tools": [
+                        {
+                            "name": tool.name,
+                            "description": tool.description,
+                            "inputSchema": tool.inputSchema
+                        }
+                        for tool in tools
+                    ]
+                }
+            }
+            yield f"data: {json.dumps(tools_response)}\n\n"
+            
+            # Keep connection alive and process messages
+            while True:
+                try:
+                    # Check for messages in queue
+                    try:
+                        message = await asyncio.wait_for(
+                            active_connections[connection_id]["queue"].get(),
+                            timeout=1.0
+                        )
+                        yield f"data: {json.dumps(message)}\n\n"
+                    except asyncio.TimeoutError:
+                        # Send keepalive
+                        yield ": keepalive\n\n"
+                        continue
+                        
+                except asyncio.CancelledError:
+                    break
+                except Exception as e:
+                    logger.error(f"Error in SSE generator: {e}")
+                    break
+                    
+        except Exception as e:
+            logger.error(f"SSE connection error: {e}")
+        finally:
+            # Clean up connection
+            if connection_id in active_connections:
+                del active_connections[connection_id]
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
+@app.post("/sse")
+async def sse_post_endpoint(request: Request):
+    """
+    Handle POST requests to SSE endpoint for sending MCP messages.
+    """
+    try:
+        body = await request.json()
+        method = body.get("method")
+        params = body.get("params", {})
+        request_id = body.get("id")
+        
+        # Handle initialization
+        if method == "initialize":
+            return {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "result": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {
+                        "tools": {}
+                    },
+                    "serverInfo": {
+                        "name": "flow",
+                        "version": "1.0.0"
+                    }
+                }
+            }
+        
+        # Handle tools/list
+        elif method == "tools/list":
+            tools = await flow_server.list_tools()
+            return {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "result": {
+                    "tools": [
+                        {
+                            "name": tool.name,
+                            "description": tool.description,
+                            "inputSchema": tool.inputSchema
+                        }
+                        for tool in tools
+                    ]
+                }
+            }
+        
+        # Handle tools/call
+        elif method == "tools/call":
+            tool_name = params.get("name")
+            arguments = params.get("arguments", {})
+            
+            if not tool_name:
+                return {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "error": {
+                        "code": -32602,
+                        "message": "Missing tool name"
+                    }
+                }
+            
+            try:
+                result = await flow_server.call_tool(tool_name, arguments)
+                return {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "result": {
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": json.dumps(result, indent=2)
+                            }
+                        ]
+                    }
+                }
+            except Exception as e:
+                logger.error(f"Error calling tool {tool_name}: {e}")
+                return {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "error": {
+                        "code": -32603,
+                        "message": str(e)
+                    }
+                }
+        
+        else:
+            return {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "error": {
+                    "code": -32601,
+                    "message": f"Unknown method: {method}"
+                }
+            }
+            
+    except Exception as e:
+        logger.error(f"Error handling SSE POST request: {e}")
+        return {
+            "jsonrpc": "2.0",
+            "id": body.get("id") if 'body' in locals() else None,
             "error": {
                 "code": -32603,
                 "message": str(e)

@@ -24,7 +24,7 @@ import threading
 import time
 import requests
 import glob
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from PIL import Image
@@ -36,6 +36,11 @@ from lib.screen_detection import screen_detector
 from lib.chroma_client import chroma_client
 
 logger = logging.getLogger(__name__)
+
+
+def now() -> datetime:
+    """Get current timezone-aware datetime in local timezone."""
+    return datetime.now().astimezone()
 
 
 class FlowRunner:
@@ -482,7 +487,7 @@ class FlowRunner:
                 logger.warning("No screens detected")
                 return
             
-            timestamp = datetime.now().isoformat()
+            timestamp = now().isoformat()
             logger.info(f"[{timestamp}] Screenshot taken from {len(screen_detector.screens)} screen(s)")
             
             # Capture each screen separately
@@ -558,7 +563,7 @@ class FlowRunner:
         """Get current status of the Flow runner service."""
         return {
             "running": self.is_running,
-            "last_capture": datetime.now().isoformat(),
+            "last_capture": now().isoformat(),
             "interval": self.capture_interval,
             "ocr_data_dir": str(self.ocr_data_dir),
             "available_screens": len(screen_detector.screens) if screen_detector.screens else 0

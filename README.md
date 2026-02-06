@@ -19,13 +19,38 @@ The entire codebase is in pre-release.
 
 ## 🚀 Quick Start
 
-### 1. Clone Repository
+### Easy install (Memex) — one command, no venv setup
+
+Install like the Claude CLI: one curl, add to PATH, then start.
+
+```bash
+# Install (installs to ~/.memex and creates the memex command)
+curl -fsSL https://raw.githubusercontent.com/joenewbry/flow/main/install.sh | sh
+
+# Add memex to your shell (if ~/.local/bin isn’t already on PATH)
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc   # or ~/.bashrc
+source ~/.zshrc
+
+# Start Memex (ChromaDB + screen capture in the background)
+memex start
+```
+
+**macOS:** Install Tesseract for OCR: `brew install tesseract`.  
+Grant **Screen Recording** permission to Terminal (or Cursor) in System Settings → Privacy & Security.
+
+Use `memex stop` to stop, `memex status` to check if it’s running.
+
+---
+
+### Manual setup (clone + venv)
+
+**1. Clone Repository**
 ```bash
 git clone https://github.com/joenewbry/flow.git
 cd flow
 ```
 
-### 2. Setup & Start ChromaDB + Screen Capture
+**2. Setup & Start ChromaDB + Screen Capture**
 ```bash
 # Setup
 cd refinery
@@ -138,8 +163,22 @@ Flow works with any MCP-compatible client. Choose your setup below:
 
 ### Option 1: Claude Desktop (Local)
 
-**Configure Claude Desktop:**
+**Configure Claude Desktop:**  
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+- **If you used the easy install (Memex):** use your home directory and the shared venv:
+```json
+{
+  "mcpServers": {
+    "flow": {
+      "command": "/Users/YOUR_USERNAME/.memex/.venv/bin/python",
+      "args": ["-u", "/Users/YOUR_USERNAME/.memex/mcp-server/server.py"]
+    }
+  }
+}
+```
+
+- **If you cloned the repo manually:** use your clone path:
 ```json
 {
   "mcpServers": {
@@ -155,7 +194,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 1. Open settings in Claude
 2. Open developer settings (this creates the config file mentioned above)
 3. Open the config file in your favorite text editor and paste in your config
-4. Make sure to update the `YOUR_USERNAME` portion
+4. Replace `YOUR_USERNAME` with your macOS username
 5. Restart Claude Desktop
 
 📖 **Configuration Guide:** See [Claude's MCP documentation](https://modelcontextprotocol.io/quickstart/user) for more details.

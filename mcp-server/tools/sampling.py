@@ -5,12 +5,17 @@ Provides flexible time range sampling with intelligent windowing.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import json
 
 logger = logging.getLogger(__name__)
+
+
+def now() -> datetime:
+    """Get current timezone-aware datetime in local timezone."""
+    return datetime.now().astimezone()
 
 
 class SamplingTool:
@@ -89,11 +94,11 @@ class SamplingTool:
     def _parse_relative_time(self, time_str: str) -> Optional[datetime]:
         """Parse relative time strings like 'yesterday 9am', 'last week', etc."""
         time_str = time_str.lower().strip()
-        now = datetime.now()
+        current_time = now()
         
         # Handle "yesterday"
         if 'yesterday' in time_str:
-            base_date = now - timedelta(days=1)
+            base_date = current_time - timedelta(days=1)
             if '9am' in time_str or '9:00' in time_str:
                 return base_date.replace(hour=9, minute=0, second=0, microsecond=0)
             elif '5pm' in time_str or '17:00' in time_str:
@@ -104,15 +109,15 @@ class SamplingTool:
         # Handle "today"
         if 'today' in time_str:
             if '9am' in time_str or '9:00' in time_str:
-                return now.replace(hour=9, minute=0, second=0, microsecond=0)
+                return current_time.replace(hour=9, minute=0, second=0, microsecond=0)
             elif '5pm' in time_str or '17:00' in time_str:
-                return now.replace(hour=17, minute=0, second=0, microsecond=0)
+                return current_time.replace(hour=17, minute=0, second=0, microsecond=0)
             else:
-                return now.replace(hour=0, minute=0, second=0, microsecond=0)
+                return current_time.replace(hour=0, minute=0, second=0, microsecond=0)
         
         # Handle "last week"
         if 'last week' in time_str:
-            return now - timedelta(days=7)
+            return current_time - timedelta(days=7)
         
         # If no relative time found, return None
         return None

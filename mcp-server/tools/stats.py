@@ -8,11 +8,16 @@ Provides statistics about OCR data and system status.
 import asyncio
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
+
+def now() -> datetime:
+    """Get current timezone-aware datetime in local timezone."""
+    return datetime.now().astimezone()
 
 
 class StatsTool:
@@ -111,7 +116,7 @@ class StatsTool:
                         "name": "screen_ocr_history",
                         "status": "no_data"
                     },
-                    "last_updated": datetime.now().isoformat()
+                    "last_updated": now().isoformat()
                 }
             
             # Sample files for analysis (use more recent files)
@@ -201,7 +206,7 @@ class StatsTool:
                     "ocr_directory": str(self.ocr_data_dir),
                     "directory_exists": self.ocr_data_dir.exists()
                 },
-                "last_updated": datetime.now().isoformat()
+                "last_updated": now().isoformat()
             }
             
             logger.info(f"Statistics generated: {total_files} files, {len(unique_screens)} screens, {content_percentage}% with content")
@@ -213,7 +218,7 @@ class StatsTool:
             return {
                 "error": str(e),
                 "ocr_files": {"count": 0},
-                "last_updated": datetime.now().isoformat()
+                "last_updated": now().isoformat()
             }
     
     async def _get_chroma_status(self) -> Dict[str, Any]:

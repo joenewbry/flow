@@ -11,11 +11,16 @@ import logging
 import subprocess
 import signal
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
+
+def now() -> datetime:
+    """Get current timezone-aware datetime in local timezone."""
+    return datetime.now().astimezone()
 
 
 class SystemTool:
@@ -97,7 +102,7 @@ class SystemTool:
             
             results = {
                 "operation": "start_flow",
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": now().isoformat(),
                 "steps": [],
                 "final_status": {}
             }
@@ -169,7 +174,7 @@ class SystemTool:
             
             results = {
                 "operation": "stop_flow",
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": now().isoformat(),
                 "steps": [],
                 "final_status": {}
             }

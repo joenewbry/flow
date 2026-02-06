@@ -8,11 +8,16 @@ Provides activity timeline and time range summary functionality.
 import asyncio
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
+
+def now() -> datetime:
+    """Get current timezone-aware datetime in local timezone."""
+    return datetime.now().astimezone()
 
 
 class ActivityTool:
@@ -99,7 +104,7 @@ class ActivityTool:
             logger.info(f"Generating activity graph: {days} days, {grouping} grouping")
             
             # Calculate time range
-            end_time = datetime.now()
+            end_time = now()
             start_time = end_time - timedelta(days=days)
             
             # Get OCR files
