@@ -75,10 +75,11 @@ class HealthService:
             return DependencyCheck("Tesseract", False)
 
     def check_chroma_package(self) -> DependencyCheck:
-        """Check if chromadb package is installed."""
+        """Check if chromadb package is installed in the current Python (memex venv)."""
         try:
+            import sys
             result = subprocess.run(
-                ["pip", "show", "chromadb"],
+                [sys.executable, "-m", "pip", "show", "chromadb"],
                 capture_output=True,
                 text=True,
                 timeout=10,
@@ -87,10 +88,27 @@ class HealthService:
                 for line in result.stdout.split("\n"):
                     if line.startswith("Version:"):
                         version = line.split(":")[1].strip()
-                        return DependencyCheck("ChromaDB", True, f"pip: {version}")
+                        return DependencyCheck("ChromaDB", True, version)
             return DependencyCheck("ChromaDB", False)
         except Exception:
             return DependencyCheck("ChromaDB", False)
+
+    def check_uv(self) -> DependencyCheck:
+        """Check if uv is installed (optional, helps run MCP server)."""
+        try:
+            path = shutil.which("uv")
+            if path:
+                result = subprocess.run(
+                    ["uv", "--version"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                version = result.stdout.strip() if result.returncode == 0 else ""
+                return DependencyCheck("uv", True, version, path)
+            return DependencyCheck("uv", False, None, "Not found")
+        except Exception:
+            return DependencyCheck("uv", False, None, "Not found")
 
     def check_ngrok(self) -> DependencyCheck:
         """Check if ngrok is installed (optional)."""

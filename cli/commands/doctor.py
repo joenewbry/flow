@@ -47,9 +47,11 @@ def doctor():
         issues += 1
 
     chroma_pkg = health.check_chroma_package()
-    print_check("ChromaDB", chroma_pkg.installed, chroma_pkg.version or "Not installed")
+    chroma_suggestion = ""
     if not chroma_pkg.installed:
+        chroma_suggestion = "Run: ./install.sh or ~/.memex/.venv/bin/pip install chromadb"
         issues += 1
+    print_check("ChromaDB", chroma_pkg.installed, chroma_pkg.version or "Not installed", chroma_suggestion)
 
     ngrok = health.check_ngrok()
     if ngrok.installed:
@@ -57,15 +59,26 @@ def doctor():
     else:
         print_check_warning("NGROK", "Not found (optional for remote)")
 
+    uv = health.check_uv()
+    if uv.installed:
+        print_check("uv", True, uv.version or uv.path or "")
+    else:
+        print_check_warning("uv", "Not found (helps MCP server: brew install uv)")
+
     # Services
     print_section("Services")
 
     chroma_server = health.check_chroma_server()
+    chroma_start_suggestion = ""
+    if not chroma_server.running and chroma_pkg.installed:
+        chroma_start_suggestion = "Run: memex start (auto-starts ChromaDB)"
+    elif not chroma_server.running:
+        chroma_start_suggestion = "Install ChromaDB first, then memex start"
     print_check(
         "ChromaDB Server",
         chroma_server.running,
         chroma_server.details,
-        "Run: chroma run --host localhost --port 8000" if not chroma_server.running else "",
+        chroma_start_suggestion,
     )
     if not chroma_server.running:
         issues += 1
@@ -81,11 +94,14 @@ def doctor():
         issues += 1
 
     mcp_server = health.check_mcp_server()
+    mcp_suggestion = ""
+    if not mcp_server.running:
+        mcp_suggestion = "cd mcp-server && uv sync, then memex start (choose MCP)"
     print_check(
         "MCP HTTP Server",
         mcp_server.running,
         mcp_server.details,
-        "Run: memex start (choose MCP when prompted)" if not mcp_server.running else "",
+        mcp_suggestion,
     )
 
     # Permissions

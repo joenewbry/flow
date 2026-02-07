@@ -144,10 +144,12 @@ main() {
     setup_venv
   else
     log_info "Using existing environment at $MEMEX_HOME/.venv"
-    # Ensure CLI deps are present (for upgrades from shell-script install)
+    # Ensure deps are present (refinery=chromadb, cli, mcp-server)
     # shellcheck disable=SC1090
     . "$MEMEX_HOME/.venv/bin/activate"
+    pip install -q -r "$MEMEX_HOME/refinery/flow-requirements.txt" 2>/dev/null || true
     pip install -q -r "$MEMEX_HOME/cli/requirements.txt" 2>/dev/null || true
+    pip install -q -r "$MEMEX_HOME/mcp-server/requirements.txt" 2>/dev/null || true
   fi
 
   write_memex_script

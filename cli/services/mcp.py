@@ -1,5 +1,6 @@
 """MCP HTTP server service for connecting Memex to Claude/Cursor."""
 
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Optional
@@ -39,23 +40,30 @@ class MCPService:
         if not self.http_server.exists():
             return False, f"MCP server not found: {self.http_server}"
 
-        # Use venv python (install layout: ~/.memex/.venv, or repo: refinery/.venv / mcp-server/.venv)
-        venv_python = self.settings.project_root / ".venv" / "bin" / "python"
-        if not venv_python.exists():
-            venv_python = self.settings.refinery_path / ".venv" / "bin" / "python"
-        if not venv_python.exists():
-            venv_python = self.settings.mcp_server_path / ".venv" / "bin" / "python"
-        python_path = str(venv_python) if venv_python.exists() else "python3"
+        # Prefer venv that has MCP deps (fastapi, uvicorn):
+        # 1. uv run (mcp-server has pyproject.toml) - auto-manages deps
+        # 2. project_root/.venv (install layout ~/.memex)
+        # 3. mcp-server/.venv (repo layout)
+        # 4. refinery/.venv
+        use_uv = shutil.which("uv")
+        cmd = []
+        cwd = str(self.settings.mcp_server_path)
+
+        if use_uv and (self.settings.mcp_server_path / "pyproject.toml").exists():
+            cmd = ["uv", "run", "python", str(self.http_server), "--port", str(self.settings.mcp_http_port)]
+        else:
+            venv_python = self.settings.project_root / ".venv" / "bin" / "python"
+            if not venv_python.exists():
+                venv_python = self.settings.mcp_server_path / ".venv" / "bin" / "python"
+            if not venv_python.exists():
+                venv_python = self.settings.refinery_path / ".venv" / "bin" / "python"
+            python_path = str(venv_python) if venv_python.exists() else "python3"
+            cmd = [python_path, str(self.http_server), "--port", str(self.settings.mcp_http_port)]
 
         try:
             process = subprocess.Popen(
-                [
-                    python_path,
-                    str(self.http_server),
-                    "--port",
-                    str(self.settings.mcp_http_port),
-                ],
-                cwd=str(self.settings.mcp_server_path),
+                cmd,
+                cwd=cwd,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,

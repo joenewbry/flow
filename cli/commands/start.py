@@ -12,6 +12,7 @@ from rich.prompt import Confirm
 from cli.display.components import print_header, print_success, print_error, print_warning
 from cli.display.colors import COLORS
 from cli.services.capture import CaptureService
+from cli.services.chroma import get_chroma_command
 from cli.services.health import HealthService
 from cli.services.mcp import MCPService
 from cli.config import get_settings
@@ -83,33 +84,39 @@ def start(
     if not chroma_check.running and not no_chroma:
         console.print(f"  [{COLORS['muted']}]○[/] ChromaDB not running, starting...")
 
-        # Try to start ChromaDB
-        try:
-            chroma_proc = subprocess.Popen(
-                ["chroma", "run", "--host", settings.chroma_host, "--port", str(settings.chroma_port)],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
-            )
-            # Wait a moment for it to start
-            time.sleep(2)
-
-            # Verify it started
-            chroma_check = health.check_chroma_server()
-            if chroma_check.running:
-                print_success(f"ChromaDB started ({settings.chroma_host}:{settings.chroma_port})")
-            else:
-                print_error("ChromaDB failed to start")
-                console.print()
-                console.print("  [dim]To fix:[/dim]")
-                console.print(f"    • Try manually: chroma run --host {settings.chroma_host} --port {settings.chroma_port}")
-                console.print("    • Run [bold]memex doctor[/bold] for full diagnostics")
-                console.print()
-        except FileNotFoundError:
-            print_error("ChromaDB command not found")
+        chroma_exe, chroma_cmd = get_chroma_command()
+        if not chroma_cmd:
+            print_error("ChromaDB not found in venv or PATH")
             console.print()
-            console.print("  [dim]To fix: pip install chromadb (or use your venv)[/dim]")
+            console.print("  [dim]To fix:[/dim]")
+            console.print("    • Re-run [bold]./install.sh[/bold] to ensure ~/.memex venv has chromadb")
+            console.print("    • Or: ~/.memex/.venv/bin/pip install chromadb")
+            console.print("    • Or from repo: pip install chromadb (in your venv)")
             console.print()
+        else:
+            try:
+                chroma_proc = subprocess.Popen(
+                    chroma_cmd,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                )
+                time.sleep(2)
+                chroma_check = health.check_chroma_server()
+                if chroma_check.running:
+                    print_success(f"ChromaDB started ({settings.chroma_host}:{settings.chroma_port})")
+                else:
+                    print_error("ChromaDB failed to start")
+                    console.print()
+                    console.print("  [dim]To fix:[/dim]")
+                    console.print(f"    • Try manually: chroma run --host {settings.chroma_host} --port {settings.chroma_port}")
+                    console.print("    • Run [bold]memex doctor[/bold] for full diagnostics")
+                    console.print()
+            except FileNotFoundError:
+                print_error("ChromaDB command not found")
+                console.print()
+                console.print("  [dim]To fix: ./install.sh or ~/.memex/.venv/bin/pip install chromadb[/dim]")
+                console.print()
     elif chroma_check.running:
         print_success(f"ChromaDB already running ({settings.chroma_host}:{settings.chroma_port})")
 
@@ -129,9 +136,9 @@ def start(
                     print_warning("MCP server process started but is not responding on port 8082")
                     console.print()
                     console.print("  [dim]The server may have crashed. Common fixes:[/dim]")
-                    console.print("    • Install MCP deps: pip install -r ~/.memex/mcp-server/requirements.txt")
-                    console.print("    • Or from repo: pip install -r mcp-server/requirements.txt")
-                    console.print("    • Check logs: the server needs fastapi and uvicorn")
+                    console.print("    • Install uv and run: cd mcp-server && uv sync (ensures fastapi, uvicorn)")
+                    console.print("    • Or: pip install -r mcp-server/requirements.txt (use your venv)")
+                    console.print("    • Re-run [bold]./install.sh[/bold] to refresh ~/.memex (if using install)")
                     console.print("    • Run [bold]memex doctor[/bold] for full diagnostics")
                     console.print()
             else:

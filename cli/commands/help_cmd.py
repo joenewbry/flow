@@ -35,6 +35,10 @@ def help_cmd():
   We ❤️ people that open PRs to fix issues!
 
   For support: {CONTACT_EMAIL}
+
+  Troubleshooting:
+    ChromaDB terminal stuck? Run [bold]memex stop --stop-chroma[/bold] in another terminal.
+    MCP server won't start? Run [bold]cd mcp-server && uv sync[/bold] then retry.
 """
     console.print(content)
     console.print()
