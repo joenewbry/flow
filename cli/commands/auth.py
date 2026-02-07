@@ -35,6 +35,12 @@ PROVIDER_INFO = {
         "env_var": "OPENAI_API_KEY",
         "prefix": "sk-",
     },
+    "grok": {
+        "name": "Grok (xAI)",
+        "url": "https://console.x.ai/",
+        "env_var": "XAI_API_KEY",
+        "prefix": "xai-",
+    },
 }
 
 
@@ -63,7 +69,7 @@ def auth(ctx: typer.Context):
     table.add_column("Status")
     table.add_column("Key")
 
-    for provider in ["anthropic", "openai"]:
+    for provider in ["anthropic", "openai", "grok"]:
         info = PROVIDER_INFO[provider]
         key = get_api_key(provider)
 
@@ -104,9 +110,17 @@ def auth_login(
         console.print("    [bold]2.[/bold] OpenAI (GPT-4)")
         console.print("        [dim]Get key: https://platform.openai.com/api-keys[/dim]")
         console.print()
+        console.print("    [bold]3.[/bold] Grok (xAI)")
+        console.print("        [dim]Get key: https://console.x.ai/[/dim]")
+        console.print()
 
-        choice = Prompt.ask("  Enter choice", choices=["1", "2", "anthropic", "openai"])
-        provider = "anthropic" if choice in ["1", "anthropic"] else "openai"
+        choice = Prompt.ask("  Enter choice", choices=["1", "2", "3", "anthropic", "openai", "grok"])
+        if choice in ["1", "anthropic"]:
+            provider = "anthropic"
+        elif choice in ["2", "openai"]:
+            provider = "openai"
+        else:
+            provider = "grok"
 
     provider = provider.lower()
     if provider not in PROVIDER_INFO:
@@ -144,6 +158,11 @@ def auth_login(
 
     if provider == "openai" and not api_key.startswith("sk-"):
         console.print(f"  [{COLORS['warning']}]![/] Key doesn't start with 'sk-' - are you sure this is an OpenAI key?")
+        if not Confirm.ask("  Save anyway?", default=False):
+            return
+
+    if provider == "grok" and not api_key.startswith("xai-"):
+        console.print(f"  [{COLORS['warning']}]![/] Key doesn't start with 'xai-' - are you sure this is a Grok key?")
         if not Confirm.ask("  Save anyway?", default=False):
             return
 
@@ -229,6 +248,12 @@ def test_api_key(provider: str, api_key: str) -> bool:
         elif provider == "openai":
             import openai
             client = openai.OpenAI(api_key=api_key)
+            client.models.list()
+            return True
+        elif provider == "grok":
+            import openai
+            # Grok uses OpenAI-compatible API
+            client = openai.OpenAI(api_key=api_key, base_url="https://api.x.ai/v1")
             client.models.list()
             return True
     except Exception:

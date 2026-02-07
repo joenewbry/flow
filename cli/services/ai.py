@@ -190,6 +190,8 @@ class AIService:
             return "Claude"
         elif self.provider == "openai":
             return "GPT-4"
+        elif self.provider == "grok":
+            return "Grok"
         return "AI"
 
     def chat_stream(
@@ -219,6 +221,8 @@ class AIService:
                 yield from self._stream_anthropic(on_tool_call, on_tool_result)
             elif self.provider == "openai":
                 yield from self._stream_openai(on_tool_call, on_tool_result)
+            elif self.provider == "grok":
+                yield from self._stream_grok(on_tool_call, on_tool_result)
         except Exception as e:
             yield StreamEvent(type="error", content=str(e))
 
@@ -443,7 +447,7 @@ Be concise but thorough. If you can't find something, say so."""
                 if not delta:
                     continue
 
-                # Handle text content
+                # Handle text content (OpenAI)
                 if delta.content:
                     collected_text += delta.content
                     yield StreamEvent(type="text", content=delta.content)
@@ -512,6 +516,149 @@ Be concise but thorough. If you can't find something, say so."""
                     })
 
                 # Continue the loop to get the final response
+                continue
+            else:
+                self.messages.append({"role": "assistant", "content": collected_text})
+                yield StreamEvent(type="done")
+                break
+
+    def _stream_grok(
+        self,
+        on_tool_call: Optional[Callable],
+        on_tool_result: Optional[Callable],
+    ) -> Generator[StreamEvent, None, None]:
+        """Stream response from Grok (xAI) - uses OpenAI-compatible API."""
+        try:
+            import openai
+        except ImportError:
+            yield StreamEvent(
+                type="error",
+                content="OpenAI package required for Grok. Run: pip install openai"
+            )
+            return
+
+        api_key = get_api_key("grok")
+        client = openai.OpenAI(api_key=api_key, base_url="https://api.x.ai/v1")
+
+        system_prompt = """You are Memex, a helpful AI assistant with access to the user's screen capture history.
+You can search through their screenshots (which have been OCR'd) to help them find information about what they were working on.
+
+When answering questions about the user's activity or trying to find information:
+1. Use the search_screenshots function to find relevant content
+2. Use get_activity_stats for general activity questions
+3. Summarize findings clearly and cite specific times when relevant
+
+Be concise but thorough. If you can't find something, say so."""
+
+        while True:
+            openai_messages = [{"role": "system", "content": system_prompt}]
+            for msg in self.messages:
+                if msg["role"] == "user":
+                    openai_messages.append({"role": "user", "content": msg["content"]})
+                elif msg["role"] == "assistant":
+                    if "tool_calls" in msg:
+                        openai_messages.append({
+                            "role": "assistant",
+                            "content": msg.get("content") or None,
+                            "tool_calls": [
+                                {
+                                    "id": tc["id"],
+                                    "type": "function",
+                                    "function": {
+                                        "name": tc["name"],
+                                        "arguments": json.dumps(tc["arguments"]),
+                                    },
+                                }
+                                for tc in msg["tool_calls"]
+                            ],
+                        })
+                    else:
+                        openai_messages.append({"role": "assistant", "content": msg["content"]})
+                elif msg["role"] == "tool":
+                    openai_messages.append({
+                        "role": "tool",
+                        "tool_call_id": msg["tool_call_id"],
+                        "content": msg["content"],
+                    })
+
+            collected_text = ""
+            tool_calls = []
+            current_tool_calls = {}
+
+            stream = client.chat.completions.create(
+                model=self.settings.grok_model,
+                messages=openai_messages,
+                tools=OPENAI_TOOLS,
+                stream=True,
+            )
+
+            for chunk in stream:
+                delta = chunk.choices[0].delta if chunk.choices else None
+                if not delta:
+                    continue
+
+                if delta.content:
+                    collected_text += delta.content
+                    yield StreamEvent(type="text", content=delta.content)
+
+                if delta.tool_calls:
+                    for tc in delta.tool_calls:
+                        idx = tc.index
+                        if idx not in current_tool_calls:
+                            current_tool_calls[idx] = {
+                                "id": tc.id or "",
+                                "name": "",
+                                "arguments": "",
+                            }
+                        if tc.id:
+                            current_tool_calls[idx]["id"] = tc.id
+                        if tc.function:
+                            if tc.function.name:
+                                current_tool_calls[idx]["name"] = tc.function.name
+                            if tc.function.arguments:
+                                current_tool_calls[idx]["arguments"] += tc.function.arguments
+
+            for idx in sorted(current_tool_calls.keys()):
+                tc_data = current_tool_calls[idx]
+                try:
+                    args = json.loads(tc_data["arguments"]) if tc_data["arguments"] else {}
+                except json.JSONDecodeError:
+                    args = {}
+
+                tool_call = ToolCall(
+                    id=tc_data["id"],
+                    name=tc_data["name"],
+                    arguments=args,
+                )
+                tool_calls.append(tool_call)
+                yield StreamEvent(type="tool_call", tool_call=tool_call)
+
+                if on_tool_call:
+                    on_tool_call(tool_call)
+
+            if tool_calls:
+                self.messages.append({
+                    "role": "assistant",
+                    "content": collected_text,
+                    "tool_calls": [
+                        {"id": tc.id, "name": tc.name, "arguments": tc.arguments}
+                        for tc in tool_calls
+                    ],
+                })
+
+                for tc in tool_calls:
+                    result = execute_tool(tc.name, tc.arguments)
+                    yield StreamEvent(type="tool_result", tool_call=tc, tool_result=result)
+
+                    if on_tool_result:
+                        on_tool_result(tc.name, result)
+
+                    self.messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc.id,
+                        "content": result,
+                    })
+
                 continue
             else:
                 self.messages.append({"role": "assistant", "content": collected_text})

@@ -43,6 +43,7 @@ def main(
         console.print("  status    Quick health check")
         console.print("  doctor    Full system diagnostics")
         console.print("  stats     Activity statistics")
+        console.print("  [bold]chat[/bold]      Interactive chat with Memex")
         console.print("  [bold]ask[/bold]       AI-powered search (streaming)")
         console.print("  search    Direct text search")
         console.print("  start     Start capture daemon")
@@ -51,18 +52,23 @@ def main(
         console.print("  auth      Manage API keys")
         console.print("  config    View/edit settings")
         console.print("  sync      Sync files to database")
+        console.print("  contact   Contact information")
+        console.print("  help      Extended help")
         console.print()
         console.print("Run 'memex <command> --help' for command details.")
 
 
 # Import and register commands
-from cli.commands import status, doctor, stats, search, start, stop, watch, sync, config, auth, ask
+from cli.commands import status, doctor, stats, search, start, stop, watch, sync, config, auth, ask, chat, contact, help_cmd
 
 app.command()(status.status)
 app.command()(doctor.doctor)
 app.command()(stats.stats)
 app.command()(search.search)
 app.command()(ask.ask)
+app.command("chat")(chat.chat)
+app.command("contact")(contact.contact)
+app.command("help")(help_cmd.help_cmd)
 app.command()(start.start)
 app.command()(stop.stop)
 app.command()(watch.watch)

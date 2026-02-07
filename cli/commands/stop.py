@@ -7,6 +7,7 @@ from cli.display.components import print_header, print_success, print_error, for
 from cli.display.colors import COLORS
 from cli.services.capture import CaptureService
 from cli.services.health import HealthService
+from cli.services.mcp import MCPService
 
 console = Console()
 
@@ -14,6 +15,9 @@ console = Console()
 def stop(
     stop_chroma: bool = typer.Option(
         False, "--stop-chroma", help="Also stop ChromaDB server"
+    ),
+    stop_mcp: bool = typer.Option(
+        False, "--stop-mcp", help="Also stop MCP HTTP server"
     ),
 ):
     """Stop the capture daemon."""
@@ -57,5 +61,17 @@ def stop(
                 console.print(f"  [{COLORS['muted']}]○[/] ChromaDB server not running")
         except Exception as e:
             print_error(f"Failed to stop ChromaDB: {e}")
+
+    if stop_mcp:
+        mcp = MCPService()
+        running, pid = mcp.is_running()
+        if running:
+            success, message = mcp.stop()
+            if success:
+                print_success(f"MCP server stopped (pid {pid})")
+            else:
+                print_error(f"Failed to stop MCP: {message}")
+        else:
+            console.print(f"  [{COLORS['muted']}]○[/] MCP server not running")
 
     console.print()

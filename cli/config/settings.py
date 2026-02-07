@@ -10,7 +10,7 @@ from typing import Optional, Literal
 CLI_DIR = Path(__file__).parent.parent
 PROJECT_ROOT = CLI_DIR.parent
 
-AIProvider = Literal["anthropic", "openai"]
+AIProvider = Literal["anthropic", "openai", "grok"]
 
 
 @dataclass
@@ -27,6 +27,9 @@ class Settings:
     # ChromaDB settings
     chroma_host: str = "localhost"
     chroma_port: int = 8000
+
+    # MCP HTTP server (for Claude/Cursor connection)
+    mcp_http_port: int = 8082
     chroma_collection: str = "screen_ocr_history"
 
     # Capture settings
@@ -36,6 +39,7 @@ class Settings:
     ai_provider: AIProvider = "anthropic"
     anthropic_model: str = "claude-sonnet-4-20250514"
     openai_model: str = "gpt-4o"
+    grok_model: str = "grok-2"
 
     # Config file location
     config_dir: Path = field(default_factory=lambda: Path.home() / ".memex")

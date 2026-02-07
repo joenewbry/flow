@@ -3,6 +3,7 @@
 import os
 import signal
 import subprocess
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -15,7 +16,11 @@ class CaptureService:
     def __init__(self):
         self.settings = get_settings()
         self.run_script = self.settings.refinery_path / "run.py"
-        self.venv_python = self.settings.refinery_path / ".venv" / "bin" / "python"
+        # Install layout: ~/.memex/.venv; repo: refinery/.venv
+        venv = self.settings.project_root / ".venv" / "bin" / "python"
+        if not venv.exists():
+            venv = self.settings.refinery_path / ".venv" / "bin" / "python"
+        self.venv_python = venv
 
     def is_running(self) -> tuple[bool, Optional[int]]:
         """Check if capture process is running. Returns (running, pid)."""
@@ -66,16 +71,41 @@ class CaptureService:
             return False, str(e)
 
     def stop(self) -> tuple[bool, str]:
-        """Stop the capture process."""
+        """Stop the capture process. Uses SIGTERM first, then SIGKILL if needed."""
         running, pid = self.is_running()
         if not running:
             return False, "Not running"
 
+        def process_exists(p: int) -> bool:
+            try:
+                os.kill(p, 0)
+                return True
+            except ProcessLookupError:
+                return False
+            except PermissionError:
+                return True
+
         try:
-            os.kill(pid, signal.SIGTERM)
+            # Kill whole process group (capture uses start_new_session=True)
+            try:
+                pgid = os.getpgid(pid)
+                os.killpg(pgid, signal.SIGTERM)
+            except (ProcessLookupError, OSError):
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    return True, f"Stopped (pid {pid})"
+
+            for _ in range(10):
+                time.sleep(0.5)
+                if not process_exists(pid):
+                    return True, f"Stopped (pid {pid})"
+
+            os.kill(pid, signal.SIGKILL)
+            time.sleep(0.5)
             return True, f"Stopped (pid {pid})"
         except ProcessLookupError:
-            return False, "Process not found"
+            return True, f"Stopped (pid {pid})"
         except PermissionError:
             return False, "Permission denied"
         except Exception as e:

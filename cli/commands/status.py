@@ -58,6 +58,13 @@ def status():
     else:
         print_status_line("ChromaDB", StatusIndicator.STOPPED, "Disconnected")
 
+    # Check MCP server
+    mcp = health.check_mcp_server()
+    if mcp.running:
+        print_status_line("MCP Server", StatusIndicator.RUNNING, "Ready", mcp.details)
+    else:
+        print_status_line("MCP Server", StatusIndicator.STOPPED, "Not running", mcp.details)
+
     # Check storage
     storage_bytes = health.get_storage_size()
     print_status_line(

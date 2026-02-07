@@ -57,13 +57,14 @@ def get_api_key(provider: str) -> Optional[str]:
     """Get API key for a provider.
 
     Checks in order:
-    1. Environment variable (ANTHROPIC_API_KEY or OPENAI_API_KEY)
+    1. Environment variable (ANTHROPIC_API_KEY, OPENAI_API_KEY, or XAI_API_KEY)
     2. Credentials file
     """
     # Check environment first
     env_vars = {
         "anthropic": "ANTHROPIC_API_KEY",
         "openai": "OPENAI_API_KEY",
+        "grok": "XAI_API_KEY",
     }
     env_var = env_vars.get(provider)
     if env_var:
@@ -110,7 +111,7 @@ def get_configured_providers() -> list[str]:
     """Get list of providers that have API keys configured."""
     providers = []
 
-    for provider in ["anthropic", "openai"]:
+    for provider in ["anthropic", "openai", "grok"]:
         if get_api_key(provider):
             providers.append(provider)
 

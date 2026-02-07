@@ -26,16 +26,29 @@ log_ok()   { echo "${GREEN}✓${NC} $1"; }
 log_warn() { echo "${YELLOW}⚠${NC} $1"; }
 log_err()  { echo "${RED}✗${NC} $1"; }
 
+# Find a Python 3.10+ executable (prefer 3.12, 3.11, 3.10 over default python3)
+find_python() {
+  for cmd in python3.12 python3.11 python3.10 python3; do
+    if command -v "$cmd" >/dev/null 2>&1; then
+      if "$cmd" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null; then
+        echo "$cmd"
+        return 0
+      fi
+    fi
+  done
+  return 1
+}
+
 # Detect if we're running from inside the repo (e.g. development)
 in_repo() {
-  [ -d "refinery" ] && [ -d "mcp-server" ] && [ -f "refinery/flow-requirements.txt" ] && [ -f "mcp-server/requirements.txt" ]
+  [ -d "refinery" ] && [ -d "mcp-server" ] && [ -d "cli" ] && [ -f "refinery/flow-requirements.txt" ] && [ -f "mcp-server/requirements.txt" ]
 }
 
 # Install from current directory
 install_from_cwd() {
   log_info "Installing from current directory into ${MEMEX_HOME}"
   mkdir -p "$MEMEX_HOME"
-  cp -R refinery mcp-server "$MEMEX_HOME/"
+  cp -R refinery mcp-server cli "$MEMEX_HOME/"
   [ -f "setup.sh" ] && cp setup.sh "$MEMEX_HOME/" || true
 }
 
@@ -62,107 +75,36 @@ install_from_repo() {
 
   log_info "Copying files to ${MEMEX_HOME}"
   mkdir -p "$MEMEX_HOME"
-  cp -R "$tmpdir/repo/refinery" "$tmpdir/repo/mcp-server" "$MEMEX_HOME/"
+  cp -R "$tmpdir/repo/refinery" "$tmpdir/repo/mcp-server" "$tmpdir/repo/cli" "$MEMEX_HOME/"
 }
 
 # Create single venv and install dependencies
 setup_venv() {
   log_info "Creating environment (one-time setup)..."
-  python3 -m venv "$MEMEX_HOME/.venv"
+  "${PYTHON:-python3}" -m venv "$MEMEX_HOME/.venv"
   # shellcheck disable=SC1090
   . "$MEMEX_HOME/.venv/bin/activate"
   pip install -q --upgrade pip
   pip install -q -r "$MEMEX_HOME/refinery/flow-requirements.txt"
+  pip install -q -r "$MEMEX_HOME/cli/requirements.txt"
   if pip install -q -r "$MEMEX_HOME/mcp-server/requirements.txt" 2>/dev/null; then
-    log_ok "Dependencies installed (refinery + MCP server)"
+    log_ok "Dependencies installed (refinery + CLI + MCP server)"
   else
-    log_warn "MCP server deps failed (optional). Memex start will work; for Claude add MCP deps later."
-    log_ok "Refinery dependencies installed"
+    log_warn "MCP server deps failed (optional). memex start/chat will work; for Claude add MCP deps later."
+    log_ok "Refinery + CLI dependencies installed"
   fi
 }
 
-# Write the memex launcher script
+# Write the memex launcher script (invokes full Python CLI)
 write_memex_script() {
   mkdir -p "$MEMEX_HOME/bin" "$BIN_DIR"
-  cat > "$MEMEX_HOME/bin/memex" << 'MEMEX_SCRIPT'
+  cat > "$MEMEX_HOME/bin/memex" << MEMEX_SCRIPT
 #!/usr/bin/env sh
-# Memex launcher - start/stop screen capture and ChromaDB
+# Memex launcher - full CLI (chat, start, status, doctor, etc.)
 
-MEMEX_HOME="${MEMEX_HOME:-$HOME/.memex}"
-VENV_PYTHON="$MEMEX_HOME/.venv/bin/python"
-VENV_BIN="$MEMEX_HOME/.venv/bin"
-PID_DIR="$MEMEX_HOME/var"
-mkdir -p "$MEMEX_HOME/logs" "$PID_DIR"
-
-start_chroma() {
-  if [ -f "$PID_DIR/chroma.pid" ] && kill -0 "$(cat "$PID_DIR/chroma.pid")" 2>/dev/null; then
-    echo "ChromaDB already running"
-    return 0
-  fi
-  nohup "$VENV_BIN/chroma" run --host localhost --port 8000 >> "$MEMEX_HOME/logs/chroma.log" 2>&1 &
-  echo $! > "$PID_DIR/chroma.pid"
-  echo "ChromaDB started (port 8000)"
-  sleep 2
-}
-
-stop_chroma() {
-  if [ -f "$PID_DIR/chroma.pid" ]; then
-    pid=$(cat "$PID_DIR/chroma.pid")
-    kill "$pid" 2>/dev/null && echo "ChromaDB stopped" || true
-    rm -f "$PID_DIR/chroma.pid"
-  fi
-}
-
-start_capture() {
-  if [ -f "$PID_DIR/capture.pid" ] && kill -0 "$(cat "$PID_DIR/capture.pid")" 2>/dev/null; then
-    echo "Screen capture already running"
-    return 0
-  fi
-  cd "$MEMEX_HOME/refinery" && nohup "$VENV_PYTHON" run.py >> "$MEMEX_HOME/logs/capture.log" 2>&1 &
-  echo $! > "$PID_DIR/capture.pid"
-  echo "Screen capture started"
-}
-
-stop_capture() {
-  if [ -f "$PID_DIR/capture.pid" ]; then
-    pid=$(cat "$PID_DIR/capture.pid")
-    kill "$pid" 2>/dev/null && echo "Screen capture stopped" || true
-    rm -f "$PID_DIR/capture.pid"
-  fi
-}
-
-case "${1:-}" in
-  start)
-    start_chroma
-    start_capture
-    echo ""
-    echo "Memex is running. Use 'memex stop' to stop."
-    ;;
-  stop)
-    stop_capture
-    stop_chroma
-    ;;
-  status)
-    running=0
-    if [ -f "$PID_DIR/chroma.pid" ] && kill -0 "$(cat "$PID_DIR/chroma.pid")" 2>/dev/null; then
-      echo "ChromaDB: running"
-      running=1
-    else
-      echo "ChromaDB: stopped"
-    fi
-    if [ -f "$PID_DIR/capture.pid" ] && kill -0 "$(cat "$PID_DIR/capture.pid")" 2>/dev/null; then
-      echo "Screen capture: running"
-      running=1
-    else
-      echo "Screen capture: stopped"
-    fi
-    [ $running -eq 0 ] && exit 1
-    ;;
-  *)
-    echo "Usage: memex {start|stop|status}"
-    exit 1
-    ;;
-esac
+MEMEX_HOME="\${MEMEX_HOME:-\$HOME/.memex}"
+export PYTHONPATH="\$MEMEX_HOME:\$PYTHONPATH"
+exec "\$MEMEX_HOME/.venv/bin/python" -m cli.main "\$@"
 MEMEX_SCRIPT
   chmod +x "$MEMEX_HOME/bin/memex"
 
@@ -181,16 +123,16 @@ main() {
   echo "Memex (Flow) — easy install"
   echo ""
 
-  if ! command -v python3 >/dev/null 2>&1; then
-    log_err "python3 not found. Please install Python 3.10+ and try again."
+  PYTHON=$(find_python) || true
+  if [ -z "$PYTHON" ]; then
+    log_err "Python 3.10+ required but not found."
+    echo ""
+    echo "Install a newer Python, then re-run this script. Examples:"
+    echo "  macOS (Homebrew):  brew install python@3.12"
+    echo "  Then run:          curl -fsSL https://raw.githubusercontent.com/joenewbry/flow/main/install.sh | sh"
     exit 1
   fi
-
-  if ! python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null; then
-    pyver=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "?")
-    log_err "Python 3.10+ required; found $pyver."
-    exit 1
-  fi
+  log_info "Using $PYTHON"
 
   if in_repo; then
     install_from_cwd
@@ -202,6 +144,10 @@ main() {
     setup_venv
   else
     log_info "Using existing environment at $MEMEX_HOME/.venv"
+    # Ensure CLI deps are present (for upgrades from shell-script install)
+    # shellcheck disable=SC1090
+    . "$MEMEX_HOME/.venv/bin/activate"
+    pip install -q -r "$MEMEX_HOME/cli/requirements.txt" 2>/dev/null || true
   fi
 
   write_memex_script
@@ -213,7 +159,9 @@ main() {
   echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
   echo ""
   echo "Then run:"
-  echo "  memex start"
+  echo "  memex start      # Start capture (and optionally MCP server)"
+  echo "  memex chat       # Chat with Memex"
+  echo "  memex help       # See all commands"
   echo ""
 }
 

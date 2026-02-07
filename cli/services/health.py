@@ -127,6 +127,26 @@ class HealthService:
         except Exception as e:
             return ServiceCheck("ChromaDB Server", False, str(e))
 
+    def check_mcp_server(self, port: Optional[int] = None) -> ServiceCheck:
+        """Check if the MCP HTTP server is running (for Claude/Cursor connection)."""
+        import socket
+        if port is None:
+            port = self.settings.mcp_http_port
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(2)
+            result = sock.connect_ex(("localhost", port))
+            sock.close()
+            if result == 0:
+                return ServiceCheck(
+                    "MCP HTTP Server",
+                    True,
+                    f"Running on port {port}",
+                )
+            return ServiceCheck("MCP HTTP Server", False, f"Not running (port {port})")
+        except Exception as e:
+            return ServiceCheck("MCP HTTP Server", False, str(e))
+
     def check_capture_process(self) -> ServiceCheck:
         """Check if the capture process is running."""
         try:

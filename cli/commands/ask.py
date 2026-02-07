@@ -168,11 +168,18 @@ def ask_callback(
         interactive_chat()
 
 
+CHAT_GREETING = """How can I help? I can find URLs, summarize your day, generate a response to an email using my context.
+
+And if you need anything contact joenewbry+memex@gmail.com."""
+
+
 def interactive_chat():
     """Run an interactive chat session."""
     console.print()
     console.print("  [bold]Memex AI Chat[/bold]")
-    console.print("  [dim]Ask questions about your screen history. Type 'quit' to exit.[/dim]")
+    console.print(f"  [bold]{CHAT_GREETING}[/bold]")
+    console.print()
+    console.print("  [dim]Type 'quit' or 'exit' to end the chat.[/dim]")
     console.print()
 
     ai = AIService()
@@ -207,8 +214,8 @@ def interactive_chat():
                 elif event.type == "tool_call":
                     console.print()
                     console.print(format_tool_call(event.tool_call))
-                elif event.type == "tool_result":
-                    console.print(format_tool_result(event.tool_call.name, event.tool_result))
+                elif event.type == "tool_result" and event.tool_call:
+                    console.print(format_tool_result(event.tool_call.name, event.tool_result or ""))
                     console.print()
                 elif event.type == "error":
                     console.print(f"  [{COLORS['error']}]Error:[/] {event.content}")

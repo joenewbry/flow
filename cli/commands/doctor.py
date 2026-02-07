@@ -80,6 +80,14 @@ def doctor():
     if not capture.running:
         issues += 1
 
+    mcp_server = health.check_mcp_server()
+    print_check(
+        "MCP HTTP Server",
+        mcp_server.running,
+        mcp_server.details,
+        "Run: memex start (choose MCP when prompted)" if not mcp_server.running else "",
+    )
+
     # Permissions
     print_section("Permissions")
 
