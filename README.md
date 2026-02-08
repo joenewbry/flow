@@ -1,6 +1,6 @@
 # Memex
 
-Searchable screen history for your entire computer. Memex takes a screenshot every minute, extracts the text, and makes it all searchable through AI.
+Searchable screen history for your entire computer. Memex takes a screenshot every minute, extracts the text, and makes it all searchable using [ChromaDB](https://www.trychroma.com/).
 
 > Inspired by Vannevar Bush's [Memex](https://en.wikipedia.org/wiki/Memex) — a vision for a device that organizes and retrieves all of a person's information. This project brings that idea to your desktop.
 
@@ -92,6 +92,14 @@ Start the HTTP server and expose via NGROK, then add to `~/.cursor/mcp.json`:
 }
 ```
 
+## Why I Made This
+
+I realized I didn't have any real history of my work from the last few years. Even in the best of times, I only occasionally take notes and record what I worked on. With vector storage and MCP, it felt like there should be a better solution — one that doesn't require me to always take notes, and lets me extract useful information after the fact.
+
+## Contributing
+
+Open a PR and send me an email at joenewbry@gmail.com with a link to the PR and what the change is. I'll review it.
+
 ## License
 
 MIT — see [LICENSE](LICENSE) for details.
@@ -99,4 +107,4 @@ MIT — see [LICENSE](LICENSE) for details.
 ## Support
 
 - **Issues**: [GitHub Issues](https://github.com/joenewbry/flow/issues)
-- **Email**: joenewbry+flow@gmail.com
+- **Email**: joenewbry@gmail.com
