@@ -1,8 +1,8 @@
-# Flow
+# Memex
 
-Searchable screen history for your entire computer. Flow takes a screenshot every minute, extracts the text, and makes it all searchable through AI.
+Searchable screen history for your entire computer. Memex takes a screenshot every minute, extracts the text, and makes it all searchable through AI.
 
-> Built for Claude Desktop, Cursor, or any MCP-compatible client. Works great from the terminal too.
+> Inspired by Vannevar Bush's [Memex](https://en.wikipedia.org/wiki/Memex) — a vision for a device that organizes and retrieves all of a person's information. This project brings that idea to your desktop.
 
 ## Install
 
@@ -27,6 +27,12 @@ memex start
 - **Onboarding docs** — "Create documentation for the Centurion project based on my screen history from March"
 - **Context switching** — "What was I doing before lunch? Help me pick up where I left off"
 - **Debug archaeology** — "Find that error message I saw in the terminal two days ago"
+
+### Example
+
+> "Can you summarize what I worked on today"
+
+![Memex summarizing a day's work in Claude Desktop](assets/example-summary.png)
 
 ## How It Works
 
@@ -53,6 +59,8 @@ memex auth login      # configure API keys (Anthropic/OpenAI)
 
 ## MCP Integration
 
+Built for Claude Desktop, Cursor, or any MCP-compatible client.
+
 ### Claude Desktop
 
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
@@ -60,15 +68,15 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "flow": {
-      "command": "/Users/YOUR_USERNAME/.memex/.venv/bin/python",
-      "args": ["-u", "/Users/YOUR_USERNAME/.memex/mcp-server/server.py"]
+    "memex": {
+      "command": "$HOME/.memex/.venv/bin/python",
+      "args": ["-u", "$HOME/.memex/mcp-server/server.py"]
     }
   }
 }
 ```
 
-Replace `YOUR_USERNAME` with your macOS username and restart Claude Desktop.
+Replace `$HOME` with your full home directory path (e.g. `/Users/yourname`) and restart Claude Desktop.
 
 ### Cursor
 
@@ -77,7 +85,7 @@ Start the HTTP server and expose via NGROK, then add to `~/.cursor/mcp.json`:
 ```json
 {
   "mcpServers": {
-    "Memex": {
+    "memex": {
       "url": "https://YOUR_NGROK_URL.ngrok-free.dev/sse"
     }
   }
