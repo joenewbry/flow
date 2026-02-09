@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 #
 # Memex (Flow) easy install — one command, no virtual env setup.
-# Usage: curl -fsSL https://raw.githubusercontent.com/joenewbry/flow/main/install.sh | sh
+# Usage: curl -fsSL https://raw.githubusercontent.com/joenewbry/memex/main/install.sh | sh
 #
 # Installs to ~/.memex and adds a `memex` command. Add ~/.local/bin to your PATH
 # if needed, then run: memex start
@@ -11,7 +11,7 @@ set -e
 
 MEMEX_HOME="${MEMEX_HOME:-$HOME/.memex}"
 BIN_DIR="${HOME}/.local/bin"
-REPO_URL="${MEMEX_REPO_URL:-https://github.com/joenewbry/flow.git}"
+REPO_URL="${MEMEX_REPO_URL:-https://github.com/joenewbry/memex.git}"
 BRANCH="${MEMEX_BRANCH:-main}"
 
 # Colors
@@ -62,7 +62,7 @@ install_from_repo() {
     git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$tmpdir/repo"
   else
     log_info "Git not found, downloading tarball..."
-    (cd "$tmpdir" && curl -sL "https://github.com/joenewbry/flow/tarball/${BRANCH}" -o flow.tar.gz && tar xzf flow.tar.gz)
+    (cd "$tmpdir" && curl -sL "https://github.com/joenewbry/memex/tarball/${BRANCH}" -o flow.tar.gz && tar xzf flow.tar.gz)
     # GitHub tarball extracts to owner-repo-commitHash/
     repodir=$(find "$tmpdir" -maxdepth 1 -type d -name '*-flow-*' | head -1)
     if [ -n "$repodir" ] && [ -d "$repodir/refinery" ]; then
@@ -129,7 +129,7 @@ main() {
     echo ""
     echo "Install a newer Python, then re-run this script. Examples:"
     echo "  macOS (Homebrew):  brew install python@3.12"
-    echo "  Then run:          curl -fsSL https://raw.githubusercontent.com/joenewbry/flow/main/install.sh | sh"
+    echo "  Then run:          curl -fsSL https://raw.githubusercontent.com/joenewbry/memex/main/install.sh | sh"
     exit 1
   fi
   log_info "Using $PYTHON"

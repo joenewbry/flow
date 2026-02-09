@@ -7,7 +7,7 @@ from cli.display.components import print_header
 
 console = Console()
 
-GITHUB_PR_URL = "https://github.com/joenewbry/flow/pulls"
+GITHUB_PR_URL = "https://github.com/joenewbry/memex/pulls"
 CONTACT_EMAIL = "joenewbry+memex@gmail.com"
 
 

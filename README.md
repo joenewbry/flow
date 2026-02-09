@@ -7,7 +7,7 @@ Searchable screen history for your entire computer. Memex takes a screenshot eve
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/joenewbry/flow/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/joenewbry/memex/main/install.sh | sh
 ```
 
 Then add to your PATH and start:
@@ -134,5 +134,5 @@ MIT — see [LICENSE](LICENSE) for details.
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/joenewbry/flow/issues)
+- **Issues**: [GitHub Issues](https://github.com/joenewbry/memex/issues)
 - **Email**: joenewbry@gmail.com
