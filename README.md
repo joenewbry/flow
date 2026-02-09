@@ -78,6 +78,34 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 Replace `$HOME` with your full home directory path (e.g. `/Users/yourname`) and restart Claude Desktop.
 
+### Claude Desktop (Remote via NGROK)
+
+To access Memex from a different computer, start the HTTP server and expose it with NGROK:
+
+```bash
+ngrok http 8082
+```
+
+Claude Desktop only supports stdio-based MCP servers — it can't connect to a URL directly. Use `mcp-remote` to bridge the gap. It runs as a local stdio process and forwards everything to your remote Memex over HTTPS/SSE.
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "memex": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://YOUR_NGROK_URL.ngrok-free.dev/sse"
+      ]
+    }
+  }
+}
+```
+
+Replace `YOUR_NGROK_URL` with your actual NGROK URL and restart Claude Desktop. Requires Node.js.
+
 ### Cursor
 
 Start the HTTP server and expose via NGROK, then add to `~/.cursor/mcp.json`:
