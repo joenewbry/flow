@@ -1,5 +1,5 @@
 #!/bin/bash
-# Flow MCP Server Startup Script
+# Memex MCP Server Startup Script
 
 cd "$(dirname "$0")"
 
@@ -7,5 +7,5 @@ cd "$(dirname "$0")"
 source .venv/bin/activate
 
 # Start the MCP server
-echo "Starting Flow MCP Server..."
+echo "Starting Memex MCP Server..."
 python server.py

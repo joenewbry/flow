@@ -1,6 +1,6 @@
-# Flow Python MCP Server
+# Memex MCP Server
 
-A standalone Python implementation of the Flow MCP (Model Context Protocol) server, replacing the previous Node.js version.
+A standalone Python implementation of the Memex MCP (Model Context Protocol) server, replacing the previous Node.js version.
 
 ## Features
 
@@ -14,7 +14,7 @@ A standalone Python implementation of the Flow MCP (Model Context Protocol) serv
 
 ### Search Tools
 - `search-screenshots` - Search OCR data from screenshots with date filtering
-- `what-can-i-do` - Get information about Flow capabilities
+- `what-can-i-do` - Get information about Memex capabilities
 
 ### Analytics Tools  
 - `get-stats` - Get comprehensive system and data statistics
@@ -22,8 +22,8 @@ A standalone Python implementation of the Flow MCP (Model Context Protocol) serv
 - `time-range-summary` - Get sampled data over specific time ranges
 
 ### System Control Tools
-- `start-flow` - Start Flow system (ChromaDB + screen capture)
-- `stop-flow` - Stop Flow system
+- `start-memex` - Start Memex system (ChromaDB + screen capture)
+- `stop-memex` - Stop Memex system
 
 ## Installation
 
@@ -72,11 +72,11 @@ Run the MCP server independently:
 ```json
 {
   "mcpServers": {
-    "flow": {
+    "memex": {
       "command": "/Users/joe/.local/bin/uv",
       "args": [
         "--directory",
-        "/Users/joe/dev/flow/mcp-server",
+        "/Users/joe/dev/memex/mcp-server",
         "run",
         "server.py"
       ]
@@ -91,8 +91,8 @@ Using the startup script:
 ```json
 {
   "mcpServers": {
-    "flow": {
-      "command": "/Users/joe/dev/flow/mcp-server/start.sh"
+    "memex": {
+      "command": "/Users/joe/dev/memex/mcp-server/start.sh"
     }
   }
 }
@@ -102,10 +102,10 @@ Direct Python execution:
 ```json
 {
   "mcpServers": {
-    "flow": {
+    "memex": {
       "command": "python",
-      "args": ["/Users/joe/dev/flow/mcp-server/server.py"],
-      "cwd": "/Users/joe/dev/flow/mcp-server"
+      "args": ["/Users/joe/dev/memex/mcp-server/server.py"],
+      "cwd": "/Users/joe/dev/memex/mcp-server"
     }
   }
 }
@@ -137,7 +137,7 @@ Search through OCR data with optional date filtering.
 - `limit` (optional): Max results (default: 10)
 
 ### get-stats
-Get comprehensive statistics about the Flow system.
+Get comprehensive statistics about the Memex system.
 
 **Returns**: File counts, date ranges, screen info, activity metrics
 
@@ -149,8 +149,8 @@ Generate activity timeline data for visualization.
 - `grouping` (optional): "hourly" or "daily" (default: "hourly")
 - `include_empty` (optional): Include empty periods (default: true)
 
-### start-flow / stop-flow
-Control the Flow system processes.
+### start-memex / stop-memex
+Control the Memex system processes.
 
 **Returns**: Operation status and process information
 
@@ -159,7 +159,7 @@ Control the Flow system processes.
 The server logs to stderr with structured logging:
 - INFO: General operations
 - ERROR: Error conditions
-- DEBUG: Detailed debugging (set FLOW_DEBUG=1)
+- DEBUG: Detailed debugging (set MEMEX_DEBUG=1)
 
 ## Error Handling
 
@@ -198,6 +198,6 @@ To extend the server:
 ### Debug Mode
 Set environment variable for detailed logging:
 ```bash
-export FLOW_DEBUG=1
+export MEMEX_DEBUG=1
 python server.py
 ```
