@@ -21,6 +21,17 @@ from cli.config.credentials import get_configured_providers
 console = Console()
 
 
+def _wait_for_service(check_fn, timeout=15, interval=1):
+    """Poll a health check function until it reports running or timeout is reached."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        time.sleep(interval)
+        result = check_fn()
+        if result.running:
+            return result
+    return result
+
+
 def start(
     foreground: bool = typer.Option(
         False, "--foreground", "-f", help="Run in foreground with live output"
@@ -101,8 +112,7 @@ def start(
                     stderr=subprocess.DEVNULL,
                     start_new_session=True,
                 )
-                time.sleep(2)
-                chroma_check = health.check_chroma_server()
+                chroma_check = _wait_for_service(health.check_chroma_server)
                 if chroma_check.running:
                     print_success(f"ChromaDB started ({settings.chroma_host}:{settings.chroma_port})")
                 else:
@@ -128,8 +138,7 @@ def start(
         else:
             success, message = mcp_svc.start()
             if success:
-                time.sleep(2)
-                mcp_verify = health.check_mcp_server()
+                mcp_verify = _wait_for_service(health.check_mcp_server)
                 if mcp_verify.running:
                     print_success(f"MCP server started - connect Claude/Cursor to port {settings.mcp_http_port}")
                 else:

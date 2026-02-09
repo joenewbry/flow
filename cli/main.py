@@ -51,6 +51,8 @@ def main(
         console.print("  watch     Live capture view")
         console.print("  logs      View service logs")
         console.print("  auth      Manage API keys")
+        console.print("  [bold]standup[/bold]   Daily standup summary")
+        console.print("  automate  Run automations from markdown")
         console.print("  config    View/edit settings")
         console.print("  sync      Sync files to database")
         console.print("  contact   Contact information")
@@ -60,7 +62,7 @@ def main(
 
 
 # Import and register commands
-from cli.commands import status, doctor, stats, search, start, stop, watch, sync, config, auth, ask, chat, contact, help_cmd, logs as logs_cmd
+from cli.commands import status, doctor, stats, search, start, stop, watch, sync, config, auth, ask, chat, contact, help_cmd, logs as logs_cmd, standup, automate
 
 app.command()(status.status)
 app.command()(doctor.doctor)
@@ -75,8 +77,10 @@ app.command()(stop.stop)
 app.command()(watch.watch)
 app.command()(sync.sync)
 app.command("logs")(logs_cmd.logs)
+app.command()(standup.standup)
 app.add_typer(config.app, name="config")
 app.add_typer(auth.app, name="auth")
+app.add_typer(automate.app, name="automate")
 
 
 if __name__ == "__main__":

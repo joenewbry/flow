@@ -236,6 +236,84 @@ async def mcp_endpoint(request: Request):
 # --- Legacy endpoints (kept for direct HTTP usage) ---
 
 
+@app.get("/api/stats")
+async def api_stats(period: str = "today"):
+    """Stats for the desktop app."""
+    try:
+        result = await flow_server.call_tool("get-stats", {})
+        return {"success": True, "data": result}
+    except Exception as e:
+        logger.error(f"Error getting stats: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/activity")
+async def api_activity(start: str = "", end: str = "", limit: int = 50):
+    """Activity timeline for the desktop app."""
+    try:
+        if not start or not end:
+            # Default to today
+            from datetime import datetime
+            today = datetime.now()
+            start = today.strftime("%Y-%m-%dT00:00:00")
+            end = today.strftime("%Y-%m-%dT23:59:59")
+
+        result = await flow_server.call_tool("time-range-summary", {
+            "start_time": start,
+            "end_time": end,
+            "max_results": limit,
+        })
+        return {"success": True, "data": result}
+    except Exception as e:
+        logger.error(f"Error getting activity: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@app.get("/api/status")
+async def api_status():
+    """System status for the desktop app."""
+    import subprocess
+    import os
+    from datetime import datetime
+    from pathlib import Path
+
+    status = {
+        "capture_running": False,
+        "chromadb_connected": False,
+        "last_capture": None,
+        "uptime": None,
+    }
+
+    # Check if capture process is running
+    try:
+        result = subprocess.run(
+            ["pgrep", "-f", "refinery/run.py"],
+            capture_output=True, text=True
+        )
+        status["capture_running"] = result.returncode == 0
+    except Exception:
+        pass
+
+    # Check ChromaDB connection
+    try:
+        await flow_server.call_tool("get-stats", {})
+        status["chromadb_connected"] = True
+    except Exception:
+        pass
+
+    # Find last capture time
+    data_dir = Path(__file__).parent.parent / "refinery" / "data"
+    if data_dir.exists():
+        files = list(data_dir.glob("*.json"))
+        if files:
+            latest = max(files, key=lambda f: f.stat().st_mtime)
+            status["last_capture"] = datetime.fromtimestamp(
+                latest.stat().st_mtime
+            ).isoformat()
+
+    return {"success": True, "data": status}
+
+
 @app.get("/tools/list")
 async def list_tools():
     """List all available MCP tools (legacy REST endpoint)."""
