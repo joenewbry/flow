@@ -54,6 +54,7 @@ memex search "query"  # direct text search
 memex stats           # activity statistics
 memex start / stop    # control the capture daemon
 memex watch           # live view of captures
+memex logs            # view service logs (mcp, capture)
 memex auth login      # configure API keys (Anthropic/OpenAI)
 ```
 
@@ -78,15 +79,33 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 Replace `$HOME` with your full home directory path (e.g. `/Users/yourname`) and restart Claude Desktop.
 
-### Claude Desktop (Remote via NGROK)
+### Claude.ai (Remote via Connector)
 
-To access Memex from a different computer, start the HTTP server and expose it with NGROK:
+Access Memex from claude.ai on any computer by exposing the MCP HTTP server with ngrok.
+
+Start Memex with the MCP server, then expose it:
 
 ```bash
+memex start --mcp
 ngrok http 8082
 ```
 
-Claude Desktop only supports stdio-based MCP servers — it can't connect to a URL directly. Use `mcp-remote` to bridge the gap. It runs as a local stdio process and forwards everything to your remote Memex over HTTPS/SSE.
+In Claude.ai, go to **Settings > Connectors** and add a new connector with the URL:
+
+```
+https://YOUR_NGROK_URL.ngrok-free.dev/sse
+```
+
+Replace `YOUR_NGROK_URL` with your actual ngrok URL. No bridge or extra tools required.
+
+### Claude Desktop (Remote via NGROK)
+
+Claude Desktop uses stdio-based MCP servers and can't connect to a URL directly. Use `mcp-remote` to bridge the gap:
+
+```bash
+memex start --mcp
+ngrok http 8082
+```
 
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
@@ -104,11 +123,11 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 }
 ```
 
-Replace `YOUR_NGROK_URL` with your actual NGROK URL and restart Claude Desktop. Requires Node.js.
+Replace `YOUR_NGROK_URL` with your actual ngrok URL and restart Claude Desktop. Requires Node.js.
 
 ### Cursor
 
-Start the HTTP server and expose via NGROK, then add to `~/.cursor/mcp.json`:
+Start the HTTP server and expose via ngrok, then add to `~/.cursor/mcp.json`:
 
 ```json
 {
