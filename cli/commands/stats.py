@@ -131,6 +131,24 @@ def stats(
 
         console.print("                8  9  10 11 12 13 14 15 16 17 18 19 20")
 
+    # Summary counts (always shown in default view)
+    if not (week or month or all_time):
+        console.print()
+        console.print(f"  [bold]Summary[/bold]")
+        console.print(f"  [dim]{'─' * 55}[/dim]")
+
+        week_start = (now - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
+        month_start = (now - timedelta(days=30)).replace(hour=0, minute=0, second=0, microsecond=0)
+        year_start = (now - timedelta(days=365)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+        week_count = db.get_capture_count(start_date=week_start, end_date=now)
+        month_count = db.get_capture_count(start_date=month_start, end_date=now)
+        year_count = db.get_capture_count(start_date=year_start, end_date=now)
+
+        console.print(f"  Last 7 days:   [bold]{format_number(week_count)}[/bold]")
+        console.print(f"  Last 30 days:  [bold]{format_number(month_count)}[/bold]")
+        console.print(f"  Last 365 days: [bold]{format_number(year_count)}[/bold]")
+
     # Week section if requested
     if week or all_time or month:
         console.print()

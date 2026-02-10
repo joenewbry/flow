@@ -196,6 +196,28 @@ class DatabaseService:
 
         return results
 
+    def get_capture_count(
+        self,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+    ) -> int:
+        """Count captures in a date range by file mtime (no JSON parsing, fast)."""
+        if not self.settings.ocr_data_path.exists():
+            return 0
+
+        count = 0
+        for f in self.settings.ocr_data_path.glob("*.json"):
+            try:
+                mtime = datetime.fromtimestamp(f.stat().st_mtime)
+                if start_date and mtime < start_date:
+                    continue
+                if end_date and mtime > end_date:
+                    continue
+                count += 1
+            except Exception:
+                continue
+        return count
+
     def get_stats(
         self,
         start_date: Optional[datetime] = None,
