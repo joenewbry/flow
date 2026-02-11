@@ -1,6 +1,6 @@
 """Status command - quick health check."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from rich.console import Console
 
 from cli.display.components import (
@@ -12,6 +12,7 @@ from cli.display.components import (
 )
 from cli.display.colors import COLORS
 from cli.services.health import HealthService
+from cli.services.database import DatabaseService
 
 console = Console()
 
@@ -100,6 +101,16 @@ def status():
         console.print(f"  Last capture: [dim]{ago}[/dim]")
     else:
         console.print("  Last capture: [dim]No captures yet[/dim]")
+
+    # Last 7 days and all-time counts
+    db = DatabaseService()
+    now = datetime.now()
+    week_start = (now - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
+    week_count = db.get_capture_count(start_date=week_start, end_date=now)
+    all_time_count = health.get_ocr_file_count()
+
+    console.print(f"  Last 7 days: [bold]{format_number(week_count)}[/bold] captures")
+    console.print(f"  All time: [bold]{format_number(all_time_count)}[/bold] captures")
 
     console.print()
     console.print(f"  [dim]{'─' * 45}[/dim]")
