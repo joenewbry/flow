@@ -1,0 +1,48 @@
+# Cloudflare Tunnel configuration for Memex Prometheus
+# Install at: /etc/cloudflared/config.yml on the Jetson
+#
+# Setup steps:
+#   1. cloudflared tunnel login
+#   2. cloudflared tunnel create prometheus-memex
+#   3. Copy the tunnel UUID below
+#   4. cloudflared tunnel route dns prometheus-memex memex.YOUR-DOMAIN.com
+#   5. cloudflared tunnel route dns prometheus-memex memex-personal.YOUR-DOMAIN.com
+#   6. cloudflared tunnel route dns prometheus-memex memex-walmart.YOUR-DOMAIN.com
+#   7. cloudflared tunnel route dns prometheus-memex memex-alaska.YOUR-DOMAIN.com
+#   8. sudo cp this-file /etc/cloudflared/config.yml
+#   9. sudo cloudflared service install
+#  10. sudo systemctl enable cloudflared
+
+tunnel: TUNNEL-UUID-HERE
+credentials-file: /home/prometheus/.cloudflared/TUNNEL-UUID-HERE.json
+
+ingress:
+  # Personal instance
+  - hostname: memex-personal.YOUR-DOMAIN.com
+    service: http://localhost:8082
+    path: /personal/*
+    originRequest:
+      noTLSVerify: true
+
+  # Walmart instance
+  - hostname: memex-walmart.YOUR-DOMAIN.com
+    service: http://localhost:8082
+    path: /walmart/*
+    originRequest:
+      noTLSVerify: true
+
+  # Alaska instance
+  - hostname: memex-alaska.YOUR-DOMAIN.com
+    service: http://localhost:8082
+    path: /alaska/*
+    originRequest:
+      noTLSVerify: true
+
+  # Single domain routing (all instances via path)
+  - hostname: memex.YOUR-DOMAIN.com
+    service: http://localhost:8082
+    originRequest:
+      noTLSVerify: true
+
+  # Catch-all (required)
+  - service: http_status:404

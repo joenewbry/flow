@@ -39,6 +39,7 @@ from tools.system import SystemTool
 from tools.sampling import SamplingTool
 from tools.vector_search import VectorSearchTool
 from tools.recent_search import RecentSearchTool
+from tools.daily_summary import DailySummaryTool
 
 # Configure logging with file and console handlers
 log_dir = Path(__file__).parent.parent / "logs"
@@ -80,7 +81,8 @@ class FlowMCPServer:
         self.sampling_tool = SamplingTool(self.workspace_root)
         self.vector_search_tool = VectorSearchTool(self.workspace_root)
         self.recent_search_tool = RecentSearchTool(self.workspace_root)
-        
+        self.daily_summary_tool = DailySummaryTool(self.workspace_root)
+
         # Register tools
         self.tools = {
             "search-screenshots": self.search_tool,
@@ -93,6 +95,7 @@ class FlowMCPServer:
             "sample-time-range": self.sampling_tool,
             "vector-search-windowed": self.vector_search_tool,
             "search-recent-relevant": self.recent_search_tool,
+            "daily-summary": self.daily_summary_tool,
         }
         
         logger.info(f"Initialized Flow MCP Server with {len(self.tools)} tools")
@@ -238,7 +241,28 @@ class FlowMCPServer:
                 "additionalProperties": False,
             },
         ))
-        
+
+        # Daily Summary
+        tools.append(Tool(
+            name="daily-summary",
+            description="Get a structured summary of a single day's activity, grouped by time-of-day periods with sampled content. Defaults to today.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "date": {
+                        "type": "string",
+                        "description": "Date in YYYY-MM-DD format (default: today)",
+                    },
+                    "include_text": {
+                        "type": "boolean",
+                        "description": "Include OCR text samples in results (default: true)",
+                        "default": True,
+                    },
+                },
+                "additionalProperties": False,
+            },
+        ))
+
         return tools
     
     async def call_tool(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -302,6 +326,11 @@ class FlowMCPServer:
                     max_days=arguments.get("max_days", 90),
                     recency_weight=arguments.get("recency_weight", 0.5),
                     min_score=arguments.get("min_score", 0.6)
+                )
+            elif name == "daily-summary":
+                return await tool.daily_summary(
+                    date=arguments.get("date"),
+                    include_text=arguments.get("include_text", True)
                 )
             else:
                 raise ValueError(f"Tool {name} not implemented")

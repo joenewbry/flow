@@ -23,7 +23,7 @@ memex start
 
 - **Meeting recall** — "What did we discuss in the standup this morning?"
 - **Link recovery** — "Find the Hacker News post about Anthropic I was reading yesterday"
-- **Work summaries** — "Summarize what I worked on this week"
+- **Work summaries** — "Summarize what I worked on this week" (try the `daily-summary` MCP tool for structured single-day reports)
 - **Onboarding docs** — "Create documentation for the Centurion project based on my screen history from March"
 - **Context switching** — "What was I doing before lunch? Help me pick up where I left off"
 - **Debug archaeology** — "Find that error message I saw in the terminal two days ago"

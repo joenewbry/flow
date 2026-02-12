@@ -16,10 +16,11 @@ A standalone Python implementation of the Memex MCP (Model Context Protocol) ser
 - `search-screenshots` - Search OCR data from screenshots with date filtering
 - `what-can-i-do` - Get information about Memex capabilities
 
-### Analytics Tools  
+### Analytics Tools
 - `get-stats` - Get comprehensive system and data statistics
 - `activity-graph` - Generate activity timeline visualizations
 - `time-range-summary` - Get sampled data over specific time ranges
+- `daily-summary` - Get a structured summary of a single day's activity
 
 ### System Control Tools
 - `start-memex` - Start Memex system (ChromaDB + screen capture)
@@ -122,6 +123,7 @@ mcp-server/
     ├── search.py          # Search functionality
     ├── stats.py           # Statistics and system info
     ├── activity.py        # Activity graphs and summaries
+    ├── daily_summary.py   # Daily activity summaries
     └── system.py          # System control and info
 ```
 
@@ -148,6 +150,15 @@ Generate activity timeline data for visualization.
 - `days` (optional): Number of days (default: 7)
 - `grouping` (optional): "hourly" or "daily" (default: "hourly")
 - `include_empty` (optional): Include empty periods (default: true)
+
+### daily-summary
+Get a structured summary of a single day's activity, grouped by time-of-day periods with sampled content.
+
+**Parameters**:
+- `date` (optional): Date in YYYY-MM-DD format (default: today)
+- `include_text` (optional): Include OCR text samples (default: true)
+
+**Returns**: Stats (total captures, word count, unique screens, active hours), period breakdown (early morning, morning, afternoon, evening, night) with sampled captures per period.
 
 ### start-memex / stop-memex
 Control the Memex system processes.
