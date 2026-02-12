@@ -13,6 +13,7 @@ from cli.display.components import (
 from cli.display.colors import COLORS
 from cli.services.health import HealthService
 from cli.services.database import DatabaseService
+from cli.services.audio import AudioService
 
 console = Console()
 
@@ -58,6 +59,19 @@ def status():
         print_status_line("ChromaDB", StatusIndicator.RUNNING, "Connected", chroma.details)
     else:
         print_status_line("ChromaDB", StatusIndicator.STOPPED, "Disconnected")
+
+    # Check audio recording
+    audio = AudioService()
+    audio_running, audio_pid = audio.is_running()
+    if audio_running:
+        audio_count = audio.get_recording_count()
+        audio_size = audio.get_total_size()
+        detail = f"pid {audio_pid}"
+        if audio_count > 0:
+            detail += f", {format_number(audio_count)} files ({format_bytes(audio_size)})"
+        print_status_line("Audio", StatusIndicator.RUNNING, "Recording", detail)
+    else:
+        print_status_line("Audio", StatusIndicator.STOPPED, "Stopped")
 
     # Check MCP server
     mcp = health.check_mcp_server()

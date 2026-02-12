@@ -8,6 +8,7 @@ from cli.display.colors import COLORS
 from cli.services.capture import CaptureService
 from cli.services.health import HealthService
 from cli.services.mcp import MCPService
+from cli.services.audio import AudioService
 
 console = Console()
 
@@ -45,6 +46,16 @@ def stop(
         if today_count > 0:
             console.print()
             console.print(f"  Today's captures: [bold]{format_number(today_count)}[/bold]")
+
+    # Stop audio recorder if running
+    audio = AudioService()
+    audio_running, audio_pid = audio.is_running()
+    if audio_running:
+        success, message = audio.stop()
+        if success:
+            print_success(f"Audio recording stopped (pid {audio_pid})")
+        else:
+            print_error(f"Failed to stop audio: {message}")
 
     # Optionally stop ChromaDB
     if stop_chroma:
