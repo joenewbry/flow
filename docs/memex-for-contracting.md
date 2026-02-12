@@ -34,31 +34,118 @@ Contractor publishes to network:
   memex contractor publish \
     --handle "@joenewbry" \
     --rate "$85/hr" \
-    --availability "immediate" \
-    --tags "kubernetes, golang, aws, terraform" \
-    --history "2 years of Memex data"
+    --availability "immediate"
 ```
 
-The contractor's data stays on their machine. The network only stores
-metadata (handle, rate, tags, availability, MCP endpoint).
+That's it. No tags, no skill lists, no self-reported anything. The
+contractor's ChromaDB already contains everything — what they work on, how
+deeply, how recently, with what tools. The network computes a summary
+automatically.
+
+The contractor's data stays on their machine. The network stores only:
+handle, rate, availability, MCP endpoint, and an auto-generated embedding
+centroid (a compressed vector fingerprint of their recent work).
+
+### No Tags — The Data Is the Profile
+
+Traditional platforms ask contractors to tag themselves: "kubernetes, golang,
+aws." This is broken for the same reason resumes are broken — it's
+self-reported, unstandardized, and stale the moment you write it.
+
+Memex doesn't need tags because the vector store already knows:
+
+```
+What tags try to capture:        What Memex already has:
+─────────────────────────        ──────────────────────
+"kubernetes"                     847 captures of kubectl, Helm, k8s dashboards
+"5 years experience"             Captures dating back to 2021-03-14
+"expert level"                   Debugging CNI issues, writing operators
+"golang"                         4,200 captures of Go code in VS Code
+"available"                      Last capture: 2 hours ago (machine is on)
+```
+
+Instead of maintaining a tag taxonomy, the system works like this:
+
+```
+1. Contractor runs Memex normally (captures screen every 60s)
+2. Their ChromaDB accumulates embeddings of everything they do
+3. Periodically (daily or on-demand), their Memex computes a "centroid" —
+   a single embedding vector that summarizes their recent work
+4. The centroid is pushed to the registry (a few hundred floats, no raw data)
+5. When a company searches, the query embeds to a vector and gets compared
+   against all contractor centroids
+6. High-similarity centroids → those MCPs get queried directly for details
+```
+
+The centroid updates itself. If a contractor switches from backend Go to
+frontend React, their centroid drifts naturally — no manual profile update
+needed. If they stop working for a month, the recency weighting in the
+centroid reflects that too.
+
+### Centroid Computation
+
+```python
+async def compute_centroid(memex: Memex, window_days: int = 90) -> list[float]:
+    """
+    Compute a single embedding vector that summarizes recent work.
+
+    Uses recency-weighted average of all embeddings in the time window.
+    More recent work counts more. Result is a fingerprint of what this
+    person has been doing.
+    """
+    cutoff = datetime.now() - timedelta(days=window_days)
+
+    # Get all embeddings from the last N days
+    results = memex.chroma.get(
+        where={"timestamp": {"$gte": cutoff.isoformat()}},
+        include=["embeddings", "metadatas"]
+    )
+
+    if not results["embeddings"]:
+        return None  # No recent activity
+
+    # Recency-weighted average
+    weights = []
+    for meta in results["metadatas"]:
+        ts = datetime.fromisoformat(meta["timestamp"])
+        days_ago = (datetime.now() - ts).days
+        # Exponential decay: recent work weighs more
+        weight = math.exp(-0.03 * days_ago)  # Half-life ~23 days
+        weights.append(weight)
+
+    # Weighted average of all embedding vectors
+    centroid = np.average(results["embeddings"], axis=0, weights=weights)
+    centroid = centroid / np.linalg.norm(centroid)  # Normalize
+
+    return centroid.tolist()
+```
+
+This runs locally on the contractor's machine. Only the resulting centroid
+vector (not the raw captures) is shared with the registry.
 
 ### The Company Side
 
 A hiring manager or procurement team connects to the Memex contractor
-network via MCP. They describe what they need, and the system searches
-across all opted-in contractors.
+network via MCP. They just describe what they need in plain language.
 
 ```
 Company searches the network:
   memex hire search "senior golang engineer with kubernetes experience, \
     available immediately, budget $90/hr"
 
-  → Found 12 matching contractors:
-    @joenewbry  — $85/hr, immediate, 2yr history (similarity: 0.94)
-    @janedoe    — $90/hr, 2 weeks, 18mo history (similarity: 0.91)
-    @bobsmith   — $80/hr, immediate, 3yr history (similarity: 0.87)
+  → Found 12 matching contractors (ranked by work-history similarity):
+    @joenewbry  — $85/hr, immediate, 2yr history (score: 0.94)
+      ↳ 4,200 Go captures, 847 k8s captures, last active: 2hr ago
+    @janedoe    — $90/hr, 2 weeks, 18mo history (score: 0.91)
+      ↳ 3,100 Go captures, 620 k8s captures, last active: yesterday
+    @bobsmith   — $80/hr, immediate, 3yr history (score: 0.87)
+      ↳ 5,800 Go captures, 410 k8s captures, last active: 3hr ago
     ...
 ```
+
+No tags involved. The scores come from comparing the search query embedding
+against each contractor's centroid, then querying the top matches' MCPs
+directly for capture counts and evidence.
 
 ## What Searches Look Like
 
@@ -71,15 +158,19 @@ Query: "Find contractors who have used Terraform to manage AWS EKS clusters"
 
 What happens:
   1. Query embeds to a vector
-  2. Registry checks each contractor's topic centroid for similarity
-  3. Top matches get their MCPs queried directly
-  4. Each contractor's Memex returns relevant screen captures + context
+  2. Vector compared against every contractor's centroid (fast, sub-second)
+  3. Top 20 centroids by cosine similarity → those MCPs get queried directly
+  4. Each contractor's Memex runs a local ChromaDB search and returns evidence
 
 Results show:
   - Actual screenshots of them writing Terraform configs
   - Time spent in Terraform (hours per week, derived from capture frequency)
   - Which AWS services they interacted with
   - How recently they used it (last week vs 6 months ago)
+
+No contractor tagged themselves "terraform" or "EKS." The system found
+them because their screen captures contain Terraform HCL files and AWS
+EKS console pages.
 ```
 
 ### 2. Depth-of-Experience Search
@@ -437,8 +528,8 @@ benefit from being discovered).
 Search Pricing:
 
 Free tier:
-  - Browse contractor profiles (metadata only)
-  - See tags, rate, availability, history depth
+  - Browse contractor profiles (centroid similarity + metadata)
+  - See rate, availability, history depth, activity recency
   - 5 deep searches per month (queries that hit actual MCPs)
 
 Pro tier ($99/month):
@@ -593,7 +684,7 @@ response. Companies see evidence of work, not private information.
 
 ```
 - Contractors opt in to the network
-- Registry stores: handle, rate, availability, tags, MCP endpoint
+- Registry stores: handle, rate, availability, centroid, MCP endpoint
 - Companies can browse and do basic searches
 - Direct MCP queries to individual contractors
 - Take rate: 0% (free to build network effects)
