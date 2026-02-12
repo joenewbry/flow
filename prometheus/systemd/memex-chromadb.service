@@ -1,0 +1,22 @@
+[Unit]
+Description=Memex ChromaDB Server
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=prometheus
+Group=prometheus
+WorkingDirectory=/ssd/memex
+ExecStart=/ssd/memex/.venv/bin/chroma run --host localhost --port 8000 --path /ssd/memex/chroma
+Restart=always
+RestartSec=10
+StandardOutput=append:/ssd/memex/logs/chromadb.log
+StandardError=append:/ssd/memex/logs/chromadb.log
+
+# Resource limits
+MemoryMax=2G
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,23 @@
+[Unit]
+Description=Memex Prometheus MCP Server
+After=network.target memex-chromadb.service
+Requires=memex-chromadb.service
+
+[Service]
+Type=simple
+User=prometheus
+Group=prometheus
+WorkingDirectory=/ssd/memex
+EnvironmentFile=/ssd/memex/config/prometheus.env
+ExecStart=/ssd/memex/.venv/bin/python -m uvicorn server.prometheus_server:app --host 0.0.0.0 --port 8082
+Restart=always
+RestartSec=10
+StandardOutput=append:/ssd/memex/logs/server.log
+StandardError=append:/ssd/memex/logs/server.log
+
+# Resource limits
+MemoryMax=1G
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

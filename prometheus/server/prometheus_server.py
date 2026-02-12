@@ -1,0 +1,389 @@
+#!/usr/bin/env python3
+"""
+Memex Prometheus Server
+
+Multi-instance MCP server hosting personal, walmart, and alaska Memex instances.
+Path-based routing: /{instance}/mcp for MCP Streamable HTTP transport.
+
+Middleware chain: CORS -> Size limit -> Audit log -> Auth -> Rate limit
+For tools/call: AI validation before dispatch.
+"""
+
+import asyncio
+import json
+import logging
+import os
+import sys
+import uuid
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict
+
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, Response
+import uvicorn
+
+# Add server directory to path
+sys.path.insert(0, str(Path(__file__).parent))
+
+from instance_manager import InstanceManager
+from auth import AuthManager
+from rate_limiter import RateLimiter
+from ai_validator import AIValidator
+
+# Load configuration
+config_dir = Path("/ssd/memex/config")
+if config_dir.exists():
+    load_dotenv(config_dir / "prometheus.env")
+
+# Configure logging
+log_dir = Path(os.environ.get("LOG_DIR", "/ssd/memex/logs"))
+log_dir.mkdir(parents=True, exist_ok=True)
+
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+file_handler = logging.FileHandler(log_dir / "prometheus-server.log")
+file_handler.setLevel(logging.INFO)
+file_handler.setFormatter(formatter)
+
+audit_handler = logging.FileHandler(log_dir / "audit.log")
+audit_handler.setLevel(logging.INFO)
+audit_handler.setFormatter(logging.Formatter('%(asctime)s - %(message)s'))
+
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+console_handler.setFormatter(formatter)
+
+logger = logging.getLogger("prometheus")
+logger.setLevel(logging.INFO)
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
+
+audit_logger = logging.getLogger("prometheus.audit")
+audit_logger.setLevel(logging.INFO)
+audit_logger.addHandler(audit_handler)
+
+# Constants
+PROTOCOL_VERSION = "2025-11-25"
+SERVER_NAME = "memex-prometheus"
+SERVER_VERSION = "1.0.0"
+MAX_REQUEST_SIZE = 1 * 1024 * 1024  # 1MB
+
+# Configuration from environment
+SERVER_HOST = os.environ.get("SERVER_HOST", "0.0.0.0")
+SERVER_PORT = int(os.environ.get("SERVER_PORT", "8082"))
+DATA_BASE_DIR = os.environ.get("DATA_BASE_DIR", "/ssd/memex/data")
+CHROMA_HOST = os.environ.get("CHROMA_HOST", "localhost")
+CHROMA_PORT = int(os.environ.get("CHROMA_PORT", "8000"))
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.2:1b")
+OLLAMA_TIMEOUT = float(os.environ.get("OLLAMA_TIMEOUT", "2.0"))
+API_KEYS_PATH = os.environ.get("API_KEYS_PATH", "/ssd/memex/config/api_keys.env")
+SECURITY_POLICY_PATH = os.environ.get("SECURITY_POLICY_PATH", "/ssd/memex/config/security-policy.md")
+INSTANCES = os.environ.get("INSTANCES", "personal,walmart,alaska").split(",")
+
+# Initialize components
+app = FastAPI(title="Memex Prometheus Server", version=SERVER_VERSION)
+
+# Will be initialized on startup
+instance_manager = None
+auth_manager = None
+rate_limiter = None
+ai_validator = None
+sessions = {}
+
+
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["MCP-Session-Id"],
+)
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize all components on startup."""
+    global instance_manager, auth_manager, rate_limiter, ai_validator
+
+    logger.info("Starting Memex Prometheus Server...")
+    logger.info(f"Instances: {INSTANCES}")
+    logger.info(f"Data dir: {DATA_BASE_DIR}")
+    logger.info(f"ChromaDB: {CHROMA_HOST}:{CHROMA_PORT}")
+
+    instance_manager = InstanceManager(
+        data_base_dir=DATA_BASE_DIR,
+        chroma_host=CHROMA_HOST,
+        chroma_port=CHROMA_PORT,
+        instances=INSTANCES,
+    )
+
+    auth_manager = AuthManager(api_keys_path=API_KEYS_PATH)
+
+    rate_limiter = RateLimiter(
+        ip_per_minute=60,
+        ip_per_hour=500,
+        instance_per_minute=120,
+    )
+
+    ai_validator = AIValidator(
+        ollama_host=OLLAMA_HOST,
+        ollama_model=OLLAMA_MODEL,
+        policy_path=SECURITY_POLICY_PATH,
+        timeout=OLLAMA_TIMEOUT,
+    )
+
+    logger.info("Memex Prometheus Server initialized successfully")
+
+
+def _get_client_ip(request: Request) -> str:
+    """Get client IP, respecting X-Forwarded-For from Cloudflare."""
+    forwarded = request.headers.get("CF-Connecting-IP") or request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+# --- Health endpoint (no auth) ---
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint - no authentication required."""
+    instances_status = {}
+    if instance_manager:
+        for name in instance_manager.list_instances():
+            inst = instance_manager.get_instance(name)
+            ocr_count = len(list(inst.ocr_data_dir.glob("*.json"))) if inst.ocr_data_dir.exists() else 0
+            instances_status[name] = {"ocr_files": ocr_count, "data_dir": str(inst.ocr_data_dir)}
+
+    return {
+        "status": "healthy",
+        "service": SERVER_NAME,
+        "version": SERVER_VERSION,
+        "instances": instances_status,
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
+@app.get("/")
+async def root():
+    """Root endpoint with server information."""
+    return {
+        "name": "Memex Prometheus Server",
+        "version": SERVER_VERSION,
+        "status": "running",
+        "protocolVersion": PROTOCOL_VERSION,
+        "instances": instance_manager.list_instances() if instance_manager else [],
+    }
+
+
+# --- MCP endpoint with path-based routing ---
+
+@app.post("/{instance}/mcp")
+async def mcp_endpoint(instance: str, request: Request):
+    """
+    MCP Streamable HTTP transport endpoint for a specific instance.
+    Handles: initialize, tools/list, tools/call, notifications, ping.
+    """
+    # Validate instance exists
+    if not instance_manager:
+        return JSONResponse(status_code=503, content={"error": "Server not initialized"})
+
+    inst = instance_manager.get_instance(instance)
+    if not inst:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "jsonrpc": "2.0", "id": None,
+                "error": {"code": -32600, "message": f"Unknown instance: {instance}. Available: {instance_manager.list_instances()}"},
+            },
+        )
+
+    # Size limit check
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > MAX_REQUEST_SIZE:
+        return JSONResponse(status_code=413, content={"error": "Request too large", "max_bytes": MAX_REQUEST_SIZE})
+
+    # Authentication
+    is_auth, auth_error = auth_manager.authenticate(request, instance)
+    if not is_auth:
+        audit_logger.info(f"AUTH_FAIL instance={instance} ip={_get_client_ip(request)} error={auth_error}")
+        return JSONResponse(
+            status_code=401,
+            content={"jsonrpc": "2.0", "id": None, "error": {"code": -32000, "message": auth_error}},
+        )
+
+    # Rate limiting
+    client_ip = _get_client_ip(request)
+    allowed, retry_after, limit_type = rate_limiter.check(client_ip, instance)
+    if not allowed:
+        audit_logger.info(f"RATE_LIMIT instance={instance} ip={client_ip} type={limit_type}")
+        return JSONResponse(
+            status_code=429,
+            content={"error": "Rate limit exceeded", "limit_type": limit_type},
+            headers={"Retry-After": str(retry_after)},
+        )
+
+    # Parse JSON-RPC body
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(
+            status_code=400,
+            content={"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "Parse error"}},
+        )
+
+    method = body.get("method")
+    request_id = body.get("id")
+    params = body.get("params", {})
+
+    # Audit log
+    audit_logger.info(f"REQUEST instance={instance} ip={client_ip} method={method} id={request_id}")
+
+    # --- Notifications (no id field) ---
+    if request_id is None:
+        return Response(status_code=202)
+
+    # --- Requests ---
+
+    if method == "initialize":
+        session_id = str(uuid.uuid4())
+        sessions[session_id] = {"initialized": True, "instance": instance}
+        logger.info(f"MCP initialize: session={session_id} instance={instance}")
+
+        return JSONResponse(
+            content={
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "result": {
+                    "protocolVersion": PROTOCOL_VERSION,
+                    "capabilities": {"tools": {"listChanged": False}},
+                    "serverInfo": {"name": f"{SERVER_NAME}-{instance}", "version": SERVER_VERSION},
+                },
+            },
+            headers={"MCP-Session-Id": session_id},
+        )
+
+    elif method == "tools/list":
+        tools = inst.get_tool_definitions()
+        return JSONResponse(
+            content={"jsonrpc": "2.0", "id": request_id, "result": {"tools": tools}},
+        )
+
+    elif method == "tools/call":
+        tool_name = params.get("name")
+        arguments = params.get("arguments", {})
+
+        if not tool_name:
+            return JSONResponse(
+                content={"jsonrpc": "2.0", "id": request_id, "error": {"code": -32602, "message": "Missing tool name"}},
+            )
+
+        # AI Validation
+        ai_allowed, ai_reason = await ai_validator.validate(tool_name, arguments, instance)
+        if not ai_allowed:
+            audit_logger.info(f"AI_DENY instance={instance} ip={client_ip} tool={tool_name} reason={ai_reason}")
+            return JSONResponse(
+                content={
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "result": {
+                        "content": [{"type": "text", "text": json.dumps({
+                            "error": "Request denied by security policy",
+                            "reason": ai_reason,
+                            "tool": tool_name,
+                        })}],
+                        "isError": True,
+                    },
+                },
+            )
+
+        # Call tool
+        try:
+            logger.info(f"tools/call: instance={instance} tool={tool_name} args={arguments}")
+            result = await inst.call_tool(tool_name, arguments)
+
+            audit_logger.info(f"TOOL_OK instance={instance} ip={client_ip} tool={tool_name}")
+
+            return JSONResponse(
+                content={
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "result": {
+                        "content": [{"type": "text", "text": json.dumps(result, indent=2)}],
+                        "isError": False,
+                    },
+                },
+            )
+        except Exception as e:
+            logger.error(f"Error calling tool {tool_name}: {e}")
+            return JSONResponse(
+                content={
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "result": {
+                        "content": [{"type": "text", "text": json.dumps({"error": str(e)})}],
+                        "isError": True,
+                    },
+                },
+            )
+
+    elif method == "ping":
+        return JSONResponse(
+            content={"jsonrpc": "2.0", "id": request_id, "result": {}},
+        )
+
+    else:
+        return JSONResponse(
+            content={
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "error": {"code": -32601, "message": f"Method not found: {method}"},
+            },
+        )
+
+
+# --- Legacy REST endpoints ---
+
+@app.get("/{instance}/tools/list")
+async def list_tools(instance: str, request: Request):
+    """List tools for an instance (legacy REST)."""
+    if not instance_manager:
+        raise HTTPException(status_code=503, detail="Server not initialized")
+
+    inst = instance_manager.get_instance(instance)
+    if not inst:
+        raise HTTPException(status_code=404, detail=f"Unknown instance: {instance}")
+
+    is_auth, auth_error = auth_manager.authenticate(request, instance)
+    if not is_auth:
+        raise HTTPException(status_code=401, detail=auth_error)
+
+    return {"tools": inst.get_tool_definitions()}
+
+
+def main():
+    """Main entry point."""
+    import argparse
+    parser = argparse.ArgumentParser(description="Memex Prometheus Server")
+    parser.add_argument("--host", default=SERVER_HOST, help="Host to bind to")
+    parser.add_argument("--port", type=int, default=SERVER_PORT, help="Port to serve on")
+    args = parser.parse_args()
+
+    logger.info(f"Starting Memex Prometheus Server on {args.host}:{args.port}")
+
+    uvicorn.run(
+        "prometheus_server:app",
+        host=args.host,
+        port=args.port,
+        log_level="info",
+    )
+
+
+if __name__ == "__main__":
+    main()

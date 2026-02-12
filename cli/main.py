@@ -43,6 +43,7 @@ def main(
         console.print("  status    Quick health check")
         console.print("  doctor    Full system diagnostics")
         console.print("  stats     Activity statistics")
+        console.print("  [bold]graph[/bold]     Usage graph (captures + MCP calls)")
         console.print("  [bold]chat[/bold]      Interactive chat with Memex")
         console.print("  [bold]ask[/bold]       AI-powered search (streaming)")
         console.print("  search    Direct text search")
@@ -63,7 +64,7 @@ def main(
 
 
 # Import and register commands
-from cli.commands import status, doctor, stats, search, start, stop, watch, sync, config, auth, ask, chat, contact, help_cmd, logs as logs_cmd, standup, automate, record
+from cli.commands import status, doctor, stats, search, start, stop, watch, sync, config, auth, ask, chat, contact, help_cmd, logs as logs_cmd, standup, automate, graph, record
 
 app.command()(status.status)
 app.command()(doctor.doctor)
@@ -79,6 +80,7 @@ app.command()(watch.watch)
 app.command()(sync.sync)
 app.command("logs")(logs_cmd.logs)
 app.command()(standup.standup)
+app.command("graph")(graph.graph)
 app.add_typer(config.app, name="config")
 app.add_typer(auth.app, name="auth")
 app.add_typer(automate.app, name="automate")
