@@ -22,6 +22,7 @@ class Settings:
     refinery_path: Path = field(default_factory=lambda: PROJECT_ROOT / "refinery")
     mcp_server_path: Path = field(default_factory=lambda: PROJECT_ROOT / "mcp-server")
     ocr_data_path: Path = field(default_factory=lambda: PROJECT_ROOT / "refinery" / "data" / "ocr")
+    audio_data_path: Path = field(default_factory=lambda: PROJECT_ROOT / "refinery" / "data" / "audio")
     chroma_path: Path = field(default_factory=lambda: PROJECT_ROOT / "refinery" / "chroma")
 
     # ChromaDB settings
@@ -34,6 +35,7 @@ class Settings:
 
     # Capture settings
     capture_interval: int = 60  # seconds
+    audio_rotation_interval: int = 300  # seconds
 
     # AI settings
     ai_provider: AIProvider = "anthropic"
@@ -54,6 +56,8 @@ class Settings:
             self.mcp_server_path = Path(self.mcp_server_path)
         if isinstance(self.ocr_data_path, str):
             self.ocr_data_path = Path(self.ocr_data_path)
+        if isinstance(self.audio_data_path, str):
+            self.audio_data_path = Path(self.audio_data_path)
         if isinstance(self.chroma_path, str):
             self.chroma_path = Path(self.chroma_path)
         if isinstance(self.config_dir, str):
