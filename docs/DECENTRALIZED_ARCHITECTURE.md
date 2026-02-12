@@ -103,11 +103,12 @@ graph TD
 
 **What the registry stores:**
 - Handle/name (e.g., `@joenewbry`)
-- Self-declared skill tags (e.g., `kubernetes`, `python`, `react`)
+- Embedding centroid (auto-generated vector fingerprint of recent work)
+- Derived topics (human-readable labels extracted from centroid, for display)
 - Current NGROK URL (changes on restart)
 - Online/offline status
 - Last heartbeat timestamp
-- Public profile summary (optional, written by the person)
+- History depth (how far back the Memex data goes)
 
 **What the registry does NOT store:**
 - Screen captures
@@ -125,18 +126,19 @@ graph TD
 6. The guard model on each node filters the request/response
 
 ```bash
-# Person publishes their node
-memex publish --tags "kubernetes,golang,aws" --handle "@joenewbry"
+# Person publishes their node (no tags needed — centroid is auto-computed)
+memex publish --handle "@joenewbry"
 # → Registered at registry.memex.dev
+# → Centroid computed from 14 months of captures
 # → Heartbeat running every 60s
 # → Your NGROK URL: https://abc123.ngrok.app
 
-# Recruiter searches
+# Recruiter searches (plain language, matched against centroids)
 memex discover "kubernetes engineer with AWS experience"
-# → Found 3 online nodes:
-# → @joenewbry (kubernetes, golang, aws) — online
-# → @janedoe (kubernetes, terraform, aws) — online
-# → @bobsmith (kubernetes, python) — offline (last seen 2h ago)
+# → Found 3 matching nodes (ranked by centroid similarity):
+# → @joenewbry (score: 0.94) — online, 14mo history
+# → @janedoe (score: 0.87) — online, 9mo history
+# → @bobsmith (score: 0.71) — offline (last seen 2h ago), 6mo history
 
 # Recruiter queries a specific node
 memex query @joenewbry "what kubernetes projects have you worked on recently?"
@@ -382,15 +384,21 @@ DELETE /node/@handle        — Unregister a node
 
 ```python
 class Node:
-    handle: str           # "@joenewbry"
-    tags: list[str]       # ["kubernetes", "golang", "aws"]
-    ngrok_url: str        # "https://abc123.ngrok.app"
-    summary: str          # "Backend engineer, 5 years"
-    online: bool          # True if heartbeat < 2 min ago
+    handle: str                    # "@joenewbry"
+    centroid: list[float]          # Auto-computed from ChromaDB embeddings
+    derived_topics: list[str]      # ["kubernetes", "golang", "aws"] (display only)
+    ngrok_url: str                 # "https://abc123.ngrok.app"
+    online: bool                   # True if heartbeat < 2 min ago
     last_heartbeat: datetime
     registered_at: datetime
-    data_since: datetime  # How far back their Memex goes
+    data_since: datetime           # How far back their Memex goes
+    centroid_updated_at: datetime  # When centroid was last recomputed
 ```
+
+No self-declared tags or summaries. The `centroid` is a vector fingerprint
+computed locally from the person's actual screen captures. `derived_topics`
+are human-readable labels extracted from the centroid for display purposes
+only — search and routing use the centroid vector directly.
 
 ## Comparison to Existing Systems
 

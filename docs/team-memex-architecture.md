@@ -70,13 +70,18 @@ class Team:
     id: str                    # "eng"
     org_id: str                # "alaskaair"
     name: str                  # "Engineering"
-    tags: list[str]            # ["backend", "infrastructure", "kubernetes"]
     members: list[Member]
 
-    # Auto-generated from vector analysis
-    topics: list[str]          # ["kubernetes", "golang", "CI/CD", "terraform"]
-    activity_centroid: list[float]  # Average embedding of team's recent work
+    # Auto-generated from vector analysis (no manual tags needed)
+    activity_centroid: list[float]  # Weighted average of member centroids
+    derived_topics: list[str]       # Extracted from centroid cluster analysis
 ```
+
+No manual tags. The team's `activity_centroid` is computed from its members'
+individual centroids (which are themselves derived from their actual screen
+captures). `derived_topics` are human-readable labels extracted by running the
+centroid through a topic-labeling step — these exist for display only, not
+for search.
 
 ### Member
 
@@ -89,14 +94,18 @@ class Member:
     teams: list[str]           # ["eng", "platform"]
     mcp_endpoint: str          # "https://joe-memex.ngrok.app"
     public_key: str            # For signed queries
-    role: str                  # "engineer", "designer", "pm"
     online: bool
     last_seen: datetime
 
-    # Auto-generated from daily analysis
-    recent_topics: list[str]   # ["kubernetes", "CI/CD pipeline"]
-    embedding_centroid: list[float]  # Average of recent work vectors
+    # Auto-generated — no manual input needed
+    embedding_centroid: list[float]  # Recency-weighted avg of work vectors
+    derived_topics: list[str]        # Human-readable labels from centroid
+    history_depth: datetime          # How far back their Memex data goes
 ```
+
+No `role` field, no `tags`. The centroid tells you what someone actually does.
+If their captures are full of Figma and design reviews, the system knows
+they're a designer without anyone labeling them as one.
 
 ## The MCP Targeting Problem
 
@@ -120,29 +129,31 @@ Phase 2: Query (hits only the matched MCPs)
 
 ### How Routing Works
 
-The org registry maintains lightweight metadata for targeting. This metadata
-is refreshed daily by an automated analysis job.
+The org registry maintains each member's centroid vector. No manual tags or
+keyword rules. Routing is pure vector similarity.
 
 ```
-Routing heuristics (checked in order):
+Routing (all vector-based, no keyword heuristics):
 
-1. Team match
-   Query mentions "design" or "mockup" → route to Design team
-   Query mentions "backend" or "API" → route to Engineering team
-   Query mentions "roadmap" or "prioritization" → route to Product team
+1. Embed the query → vector V
 
-2. Topic match
-   Query embeds to vector V
-   Compare V to each member's embedding_centroid
-   Return top-K members by cosine similarity
+2. Compare V against all member centroids (fast, in-memory)
+   → Ranked list by cosine similarity
 
-3. Recency match
-   If query asks about "this week" or "recently"
-   Filter to members who were online in the last 7 days
+3. Apply filters:
+   - Online status (skip offline members unless cached)
+   - Recency (if query asks about "this week", weight recent centroids)
+   - Team scope (if query specifies a team, limit to those members)
 
-4. Explicit targeting
+4. Top-K members get their MCPs queried directly
+
+5. Explicit targeting overrides everything:
    "Ask @joe about..." → route directly to @joe's MCP
 ```
+
+No rules like "query mentions design → route to Design team." If someone in
+Engineering is doing design work, their centroid reflects that and they'll
+show up in design-related queries naturally.
 
 ### The Registry as an MCP Itself
 
