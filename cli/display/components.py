@@ -100,6 +100,11 @@ def print_warning(message: str):
     console.print(f"  [{COLORS['warning']}]⚠[/] {message}")
 
 
+def print_tip(message: str):
+    """Print a contextual tip, styled dim so it doesn't compete with AI output."""
+    console.print(f"  [dim]Tip: {message}[/dim]")
+
+
 def print_check(label: str, passed: bool, value: str = "", suggestion: str = ""):
     """Print a check result (for doctor command)."""
     if passed:

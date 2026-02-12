@@ -10,8 +10,9 @@ from rich.panel import Panel
 from rich.markdown import Markdown
 from rich.spinner import Spinner
 
-from cli.display.components import print_header
+from cli.display.components import print_header, print_tip
 from cli.display.colors import COLORS
+from cli.display.tips import TipEngine
 from cli.services.ai import AIService, StreamEvent, ToolCall
 
 console = Console()
@@ -179,7 +180,7 @@ def interactive_chat():
     console.print("  [bold]Memex AI Chat[/bold]")
     console.print(f"  [bold]{CHAT_GREETING}[/bold]")
     console.print()
-    console.print("  [dim]Type 'quit' or 'exit' to end the chat.[/dim]")
+    console.print("  [dim]Type /help for commands, or 'quit' to exit.[/dim]")
     console.print()
 
     ai = AIService()
@@ -194,6 +195,8 @@ def interactive_chat():
     console.print(f"  [dim]Using {provider_name}[/dim]")
     console.print()
 
+    tip_engine = TipEngine()
+
     while True:
         try:
             query = console.input(f"  [{COLORS['primary']}]>[/] ").strip()
@@ -204,6 +207,11 @@ def interactive_chat():
             if query.lower() in ["quit", "exit", "q"]:
                 console.print("  [dim]Goodbye![/dim]")
                 break
+
+            if query.startswith("/"):
+                from cli.commands.chat import _handle_slash_command
+                _handle_slash_command(query, ai, tip_engine)
+                continue
 
             console.print()
 
@@ -222,6 +230,11 @@ def interactive_chat():
 
             console.print()
             console.print()
+
+            tip = tip_engine.maybe_show_tip()
+            if tip:
+                print_tip(tip)
+                console.print()
 
         except KeyboardInterrupt:
             console.print()
