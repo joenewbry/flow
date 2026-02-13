@@ -14,6 +14,8 @@ from cli.display.colors import COLORS
 from cli.services.health import HealthService
 from cli.services.database import DatabaseService
 from cli.services.audio import AudioService
+from cli.services.instance import InstanceService
+from cli.services.usage import UsageTracker
 
 console = Console()
 
@@ -24,6 +26,17 @@ def status():
 
     health = HealthService()
     settings = health.settings
+
+    # Show hosting mode
+    instance_svc = InstanceService()
+    instance_config = instance_svc.load()
+    mode = instance_config.hosting_mode
+    mode_detail = ""
+    if mode == "jetson" and instance_config.jetson_host:
+        mode_detail = instance_config.jetson_host
+    elif mode == "remote" and instance_config.remote_host:
+        mode_detail = instance_config.remote_host
+    print_status_line("Hosting", StatusIndicator.RUNNING, mode, mode_detail)
 
     # Check capture - based on recent activity, not just process
     latest = health.get_latest_capture_time()
@@ -125,6 +138,17 @@ def status():
 
     console.print(f"  Last 7 days: [bold]{format_number(week_count)}[/bold] captures")
     console.print(f"  All time: [bold]{format_number(all_time_count)}[/bold] captures")
+
+    # Usage tracking summary
+    tracker = UsageTracker()
+    day_usage = tracker.get_usage_summary("day")
+    if day_usage["tool_calls"] > 0 or day_usage["data_syncs"] > 0:
+        console.print()
+        console.print(f"  [dim]Usage today:[/dim] [bold]{day_usage['tool_calls']}[/bold] tool calls", end="")
+        if day_usage["data_syncs"] > 0:
+            console.print(f", [bold]{day_usage['data_syncs']}[/bold] syncs ({format_bytes(day_usage['total_bytes'])})")
+        else:
+            console.print()
 
     console.print()
     console.print(f"  [dim]{'─' * 45}[/dim]")

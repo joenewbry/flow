@@ -9,7 +9,9 @@ import asyncio
 import json
 import logging
 import sys
+import time
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
 import argparse
@@ -23,6 +25,35 @@ import uvicorn
 sys.path.append(str(Path(__file__).parent))
 
 from server import FlowMCPServer
+
+# Usage tracking — lightweight JSONL append, no CLI dependency
+USAGE_LOG_PATH = Path.home() / ".memex" / "usage.jsonl"
+
+
+def _log_tool_usage(tool_name: str, arguments: dict, result: Any, duration_ms: int, is_error: bool = False):
+    """Append a usage event to the JSONL log."""
+    try:
+        USAGE_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        query_len = len(json.dumps(arguments)) if arguments else 0
+        result_count = 0
+        if isinstance(result, dict):
+            result_count = result.get("total_results", result.get("count", 0))
+        elif isinstance(result, list):
+            result_count = len(result)
+        event = {
+            "ts": datetime.now().isoformat(timespec="seconds"),
+            "event": "tool_call",
+            "instance": "personal",
+            "tool": tool_name,
+            "query_len": query_len,
+            "results": result_count,
+            "duration_ms": duration_ms,
+        }
+        with open(USAGE_LOG_PATH, "a") as f:
+            f.write(json.dumps(event) + "\n")
+    except Exception:
+        pass  # Never fail a tool call over metering
+
 
 # Configure logging
 log_dir = Path(__file__).parent.parent / "logs"
@@ -184,7 +215,10 @@ async def mcp_endpoint(request: Request):
 
         try:
             logger.info(f"MCP tools/call: {tool_name} args={arguments}")
+            t0 = time.monotonic()
             result = await flow_server.call_tool(tool_name, arguments)
+            duration_ms = int((time.monotonic() - t0) * 1000)
+            _log_tool_usage(tool_name, arguments, result, duration_ms)
             return JSONResponse(
                 content={
                     "jsonrpc": "2.0",
@@ -201,6 +235,8 @@ async def mcp_endpoint(request: Request):
                 }
             )
         except Exception as e:
+            duration_ms = int((time.monotonic() - t0) * 1000) if 't0' in locals() else 0
+            _log_tool_usage(tool_name, arguments, None, duration_ms, is_error=True)
             logger.error(f"Error calling tool {tool_name}: {e}")
             return JSONResponse(
                 content={
@@ -337,7 +373,10 @@ async def call_tool(request: Request):
             raise HTTPException(status_code=400, detail="Missing 'tool' parameter")
 
         logger.info(f"Calling tool: {tool_name} with arguments: {arguments}")
+        t0 = time.monotonic()
         result = await flow_server.call_tool(tool_name, arguments)
+        duration_ms = int((time.monotonic() - t0) * 1000)
+        _log_tool_usage(tool_name, arguments, result, duration_ms)
 
         return {"success": True, "tool": tool_name, "result": result}
     except Exception as e:
