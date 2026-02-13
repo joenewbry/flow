@@ -43,7 +43,7 @@ def main(
         console.print("  status    Quick health check")
         console.print("  doctor    Full system diagnostics")
         console.print("  stats     Activity statistics")
-        console.print("  [bold]graph[/bold]     Usage graph (captures + MCP calls)")
+        console.print("  [bold]graph[/bold]     Usage graph (captures + MCP calls, --live to watch)")
         console.print("  [bold]chat[/bold]      Interactive chat with Memex")
         console.print("  [bold]ask[/bold]       AI-powered search (streaming)")
         console.print("  search    Direct text search")

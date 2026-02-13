@@ -137,7 +137,8 @@ No blockchain needed. You get:
 You don't get:
 - Global ordering (no consensus on what happened first)
 - Public verifiability (only A and B have the receipts)
-- Smart contract logic (no programmable rules)
+- Smart contract  (no programmable rules)
+logic
 
 ## What Would We Actually Put On-Chain?
 

@@ -1,16 +1,19 @@
 """Graph command - live terminal dashboard for Memex usage."""
 
 import re
+import time
 from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
 import typer
-from rich.console import Console
+from rich.console import Console, Group
+from rich.live import Live
+from rich.text import Text
 
 from cli.display.colors import COLORS
-from cli.display.components import print_header, format_number
+from cli.display.components import format_number, LOGO_MINIMAL
 from cli.config import get_settings
 
 console = Console()
@@ -80,17 +83,18 @@ def _render_bar(value: int, max_val: int, width: int = 38) -> str:
     return "█" * filled + "░" * (width - filled)
 
 
-def _render_dual_chart(
+def _dual_chart_lines(
     title: str,
     labels: list[str],
     captures: dict,
     mcp_calls: dict,
     label_width: int = 7,
-):
-    """Render a dual bar chart (captures + MCP calls) in the terminal."""
-    console.print()
-    console.print(f"  [bold]{title}[/bold]")
-    console.print(f"  [dim]{'─' * 62}[/dim]")
+) -> list[str]:
+    """Return Rich markup strings for a dual bar chart."""
+    lines = []
+    lines.append("")
+    lines.append(f"  [bold]{title}[/bold]")
+    lines.append(f"  [dim]{'─' * 62}[/dim]")
 
     all_cap_vals = [captures.get(l, 0) for l in labels]
     all_mcp_vals = [mcp_calls.get(l, 0) for l in labels]
@@ -104,31 +108,35 @@ def _render_dual_chart(
         mcp_bar = _render_bar(mcp, max_mcp, 14)
         cap_str = str(cap) if cap > 0 else "-"
         mcp_str = str(mcp) if mcp > 0 else "-"
-        console.print(
+        lines.append(
             f"  {label:>{label_width}}  [{COLORS['primary']}]{cap_bar}[/] {cap_str:>5}"
             f"  [{COLORS['secondary']}]{mcp_bar}[/] {mcp_str:>3}"
         )
 
     # Legend
-    console.print()
-    console.print(
+    lines.append("")
+    lines.append(
         f"  {'':>{label_width}}  [{COLORS['primary']}]██[/] Captures"
         f"                          [{COLORS['secondary']}]██[/] MCP Calls"
     )
+    return lines
 
 
-def graph(
-    week: bool = typer.Option(False, "--week", "-w", help="Show last 7 days (daily bars)"),
-    month: bool = typer.Option(False, "--month", "-m", help="Show last 30 days (daily bars)"),
-    all_time: bool = typer.Option(False, "--all", "-a", help="Show all-time (weekly bars)"),
-):
-    """Live usage graph - captures and MCP calls over time."""
-    settings = get_settings()
-    ocr_path = settings.ocr_data_path
-    log_path = settings.project_root / "logs" / "mcp-server.log"
+def _render_dual_chart(title, labels, captures, mcp_calls, label_width=7):
+    """Render a dual bar chart directly to the console."""
+    for line in _dual_chart_lines(title, labels, captures, mcp_calls, label_width):
+        console.print(line)
+
+
+def _build_graph_lines(ocr_path: Path, log_path: Path, week_flag: bool, month_flag: bool, all_time_flag: bool, live_mode: bool = False) -> list[str]:
+    """Build the full graph display as a list of Rich markup strings."""
     now = datetime.now()
+    lines = []
 
-    print_header("Graph")
+    # Header
+    lines.append(f"  [{COLORS['primary']}]{LOGO_MINIMAL}[/] Graph")
+    lines.append(f"  [dim]{'─' * 45}[/dim]")
+    lines.append("")
 
     # --- Summary boxes ---
     total_files = sum(1 for _ in ocr_path.glob("*.json")) if ocr_path.exists() else 0
@@ -152,32 +160,30 @@ def graph(
     all_mcp = _count_mcp_calls(log_path, epoch, now, "%Y-%m-%d")
     all_mcp_count = sum(all_mcp.values())
 
-    console.print(f"  {'Captures':26s} {'MCP Calls':26s}")
-    console.print(f"  [dim]{'─' * 25}[/dim]   [dim]{'─' * 25}[/dim]")
-    console.print(
+    lines.append(f"  {'Captures':26s} {'MCP Calls':26s}")
+    lines.append(f"  [dim]{'─' * 25}[/dim]   [dim]{'─' * 25}[/dim]")
+    lines.append(
         f"  Today:     [bold]{format_number(today_cap_count):>10}[/bold]"
         f"        Today:     [bold]{format_number(today_mcp_count):>10}[/bold]"
     )
-    console.print(
+    lines.append(
         f"  This week: [bold]{format_number(week_cap_count):>10}[/bold]"
         f"        This week: [bold]{format_number(week_mcp_count):>10}[/bold]"
     )
-    console.print(
+    lines.append(
         f"  All time:  [bold]{format_number(total_files):>10}[/bold]"
         f"        All time:  [bold]{format_number(all_mcp_count):>10}[/bold]"
     )
 
     # --- Charts ---
-    if all_time:
+    if all_time_flag:
         # Weekly buckets over all time
-        # Find earliest file
         earliest = now
         for f in ocr_path.glob("*.json"):
             dt = _parse_ocr_filename_date(f.name)
             if dt and dt < earliest:
                 earliest = dt
 
-        # Generate week labels
         week_start_dt = earliest - timedelta(days=earliest.weekday())
         week_start_dt = week_start_dt.replace(hour=0, minute=0, second=0, microsecond=0)
         labels = []
@@ -189,17 +195,15 @@ def graph(
         captures = _count_files_by_period(ocr_path, earliest, now, "%Y-W%W")
         mcp_calls = _count_mcp_calls(log_path, earliest, now, "%Y-W%W")
 
-        # Show last 20 weeks max to keep it readable
         if len(labels) > 20:
             labels = labels[-20:]
 
-        _render_dual_chart(
+        lines.extend(_dual_chart_lines(
             f"All Time (last {len(labels)} weeks)",
             labels, captures, mcp_calls, label_width=9,
-        )
+        ))
 
-    elif month:
-        # Daily bars for last 30 days
+    elif month_flag:
         labels = []
         for i in range(29, -1, -1):
             d = now - timedelta(days=i)
@@ -209,7 +213,6 @@ def graph(
         captures = _count_files_by_period(ocr_path, month_start, now, "%Y-%m-%d")
         mcp_calls = _count_mcp_calls(log_path, month_start, now, "%Y-%m-%d")
 
-        # Map raw labels to short display labels
         display_labels = []
         cap_display = {}
         mcp_display = {}
@@ -220,13 +223,12 @@ def graph(
             cap_display[dl] = captures.get(l, 0)
             mcp_display[dl] = mcp_calls.get(l, 0)
 
-        _render_dual_chart(
+        lines.extend(_dual_chart_lines(
             "Last 30 Days",
             display_labels, cap_display, mcp_display, label_width=8,
-        )
+        ))
 
-    elif week:
-        # Daily bars for last 7 days
+    elif week_flag:
         labels = []
         display_labels = []
         for i in range(6, -1, -1):
@@ -241,26 +243,19 @@ def graph(
         captures = _count_files_by_period(ocr_path, week_start, now, "%Y-%m-%d")
         mcp_calls = _count_mcp_calls(log_path, week_start, now, "%Y-%m-%d")
 
-        # Map raw labels to display labels
         cap_display = {dl: captures.get(rl, 0) for rl, dl in zip(labels, display_labels)}
         mcp_display = {dl: mcp_calls.get(rl, 0) for rl, dl in zip(labels, display_labels)}
 
-        _render_dual_chart(
+        lines.extend(_dual_chart_lines(
             "Last 7 Days",
             display_labels, cap_display, mcp_display, label_width=9,
-        )
+        ))
 
     else:
         # Default: today hourly view + last 7 days daily
-        # Hourly chart for today
-        hour_labels = []
-        for h in range(24):
-            hour_labels.append(f"{h:02d}:00")
-
         captures_hourly = _count_files_by_period(ocr_path, today_start, now, "%H:00")
         mcp_hourly = _count_mcp_calls(log_path, today_start, now, "%H:00")
 
-        # Only show hours from first activity to current
         first_active = None
         for h in range(24):
             key = f"{h:02d}:00"
@@ -274,10 +269,10 @@ def graph(
         else:
             active_labels = [f"{now.hour:02d}:00"]
 
-        _render_dual_chart(
+        lines.extend(_dual_chart_lines(
             f"Today ({now.strftime('%b %d, %Y')})",
             active_labels, captures_hourly, mcp_hourly, label_width=7,
-        )
+        ))
 
         # Also show last 7 days
         labels = []
@@ -296,9 +291,43 @@ def graph(
         cap_display = {dl: captures_daily.get(rl, 0) for rl, dl in zip(labels, display_labels)}
         mcp_display = {dl: mcp_daily.get(rl, 0) for rl, dl in zip(labels, display_labels)}
 
-        _render_dual_chart(
+        lines.extend(_dual_chart_lines(
             "Last 7 Days",
             display_labels, cap_display, mcp_display, label_width=9,
-        )
+        ))
 
-    console.print()
+    if live_mode:
+        lines.append("")
+        lines.append(f"  [dim]Updated {now.strftime('%H:%M:%S')}  •  Ctrl+C to stop[/dim]")
+
+    lines.append("")
+    return lines
+
+
+def graph(
+    week: bool = typer.Option(False, "--week", "-w", help="Show last 7 days (daily bars)"),
+    month: bool = typer.Option(False, "--month", "-m", help="Show last 30 days (daily bars)"),
+    all_time: bool = typer.Option(False, "--all", "-a", help="Show all-time (weekly bars)"),
+    live: bool = typer.Option(False, "--live", "-l", help="Live updating display"),
+    interval: float = typer.Option(5.0, "--interval", "-i", help="Refresh interval in seconds (with --live)"),
+):
+    """Live usage graph - captures and MCP calls over time."""
+    settings = get_settings()
+    ocr_path = settings.ocr_data_path
+    log_path = settings.project_root / "logs" / "mcp-server.log"
+
+    if live:
+        try:
+            with Live(console=console, refresh_per_second=1, vertical_overflow="crop") as live_display:
+                while True:
+                    markup_lines = _build_graph_lines(ocr_path, log_path, week, month, all_time, live_mode=True)
+                    renderable = Group(*[Text.from_markup(line) for line in markup_lines])
+                    live_display.update(renderable)
+                    time.sleep(interval)
+        except KeyboardInterrupt:
+            console.print()
+            console.print("  [dim]Stopped.[/dim]")
+            console.print()
+    else:
+        for line in _build_graph_lines(ocr_path, log_path, week, month, all_time):
+            console.print(line)
