@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Memex Architecture</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+</head>
+<body>
+
+<div id="sidebar">
+  <div class="logo">
+    <h1>MEMEX</h1>
+    <p>Architecture Explorer</p>
+  </div>
+  <nav id="nav"></nav>
+</div>
+
+<div id="main"></div>
+
+<script src="pages.js"></script>
+<script>
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'dark',
+  themeVariables: {
+    darkMode: true,
+    background: '#101018',
+    primaryColor: '#2d2d44',
+    primaryTextColor: '#e2e8f0',
+    primaryBorderColor: '#4f46e5',
+    lineColor: '#818cf8',
+    secondaryColor: '#1e1e2e',
+    tertiaryColor: '#181824',
+    fontFamily: 'Inter, sans-serif',
+    fontSize: '13px',
+  }
+});
+
+const NAV = [
+  { section: 'Overview' },
+  { id: 'home',       label: 'Home',              icon: '~' },
+  { section: 'Architectures' },
+  { id: 'single',     label: 'Single User',        icon: '>' },
+  { id: 'multi',      label: 'Multi-Tenant',       icon: '#' },
+  { id: 'peer',       label: 'Multi-Peer',         icon: '*' },
+  { section: 'Deep Dives' },
+  { id: 'security',   label: 'Security & Vectors',  icon: '!' },
+  { id: 'dataflow',   label: 'Data Flow',           icon: '=' },
+  { id: 'mcp',        label: 'MCP Architecture',    icon: '@' },
+  { id: 'capture',    label: 'Capture Pipeline',    icon: '%' },
+];
+
+function renderNav(active) {
+  const nav = document.getElementById('nav');
+  nav.innerHTML = NAV.map(item => {
+    if (item.section) return `<div class="section-label">${item.section}</div>`;
+    const cls = item.id === active ? 'active' : '';
+    return `<a href="#${item.id}" class="${cls}"><span class="icon">${item.icon}</span>${item.label}</a>`;
+  }).join('');
+}
+
+async function renderPage(id) {
+  const main = document.getElementById('main');
+  const fn = PAGES[id] || PAGES['home'];
+  main.innerHTML = fn();
+  renderNav(id);
+  await mermaid.run({ querySelector: '.mermaid' });
+  window.scrollTo(0, 0);
+}
+
+function route() {
+  const id = location.hash.slice(1) || 'home';
+  renderPage(id);
+}
+
+window.addEventListener('hashchange', route);
+route();
+</script>
+</body>
+</html>
