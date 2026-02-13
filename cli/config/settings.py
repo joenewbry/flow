@@ -11,6 +11,7 @@ CLI_DIR = Path(__file__).parent.parent
 PROJECT_ROOT = CLI_DIR.parent
 
 AIProvider = Literal["anthropic", "openai", "grok"]
+HostingMode = Literal["local", "jetson", "remote"]
 
 
 @dataclass
@@ -33,6 +34,9 @@ class Settings:
     mcp_http_port: int = 8082
     chroma_collection: str = "screen_ocr_history"
 
+    # Hosting mode (overridden from instance.json if present)
+    hosting_mode: HostingMode = "jetson"
+
     # Capture settings
     capture_interval: int = 60  # seconds
     audio_rotation_interval: int = 300  # seconds
@@ -47,7 +51,7 @@ class Settings:
     config_dir: Path = field(default_factory=lambda: Path.home() / ".memex")
 
     def __post_init__(self):
-        """Ensure paths are Path objects."""
+        """Ensure paths are Path objects and apply instance config overrides."""
         if isinstance(self.project_root, str):
             self.project_root = Path(self.project_root)
         if isinstance(self.refinery_path, str):
@@ -62,6 +66,41 @@ class Settings:
             self.chroma_path = Path(self.chroma_path)
         if isinstance(self.config_dir, str):
             self.config_dir = Path(self.config_dir)
+
+        # Load instance config and override connection settings
+        self._apply_instance_config()
+
+    def _apply_instance_config(self):
+        """Load instance.json and override chroma_host/port/mcp_http_port based on hosting mode."""
+        instance_path = self.config_dir / "instance.json"
+        if not instance_path.exists():
+            return
+
+        try:
+            with open(instance_path, "r") as f:
+                data = json.load(f)
+        except Exception:
+            return
+
+        mode = data.get("hosting_mode", "jetson")
+        self.hosting_mode = mode
+
+        if mode == "jetson":
+            jetson_host = data.get("jetson_host", "")
+            if jetson_host:
+                self.chroma_host = jetson_host
+            self.chroma_port = data.get("jetson_chroma_port", self.chroma_port)
+            self.mcp_http_port = data.get("jetson_mcp_port", self.mcp_http_port)
+        elif mode == "remote":
+            remote_host = data.get("remote_host", "")
+            if remote_host:
+                self.chroma_host = remote_host
+            self.chroma_port = data.get("remote_chroma_port", self.chroma_port)
+            self.mcp_http_port = data.get("remote_mcp_port", self.mcp_http_port)
+        elif mode == "local":
+            self.chroma_host = data.get("local_chroma_host", "localhost")
+            self.chroma_port = data.get("local_chroma_port", self.chroma_port)
+            self.mcp_http_port = data.get("local_mcp_port", self.mcp_http_port)
 
 
 # Singleton settings instance

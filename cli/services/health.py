@@ -257,6 +257,42 @@ class HealthService:
                     total += f.stat().st_size
         return total
 
+    def check_ssh_connection(self, host: str, port: int = 22, timeout: int = 5) -> ServiceCheck:
+        """Check if an SSH connection can be established to a remote host."""
+        try:
+            result = subprocess.run(
+                ["ssh", "-o", "BatchMode=yes", "-o", f"ConnectTimeout={timeout}",
+                 "-o", "StrictHostKeyChecking=no", "-p", str(port), host, "echo ok"],
+                capture_output=True,
+                text=True,
+                timeout=timeout + 2,
+            )
+            if result.returncode == 0:
+                return ServiceCheck("SSH", True, f"Connected to {host}:{port}")
+            # SSH connected but auth failed — host is reachable
+            if "Permission denied" in result.stderr:
+                return ServiceCheck("SSH", True, f"Reachable (auth required) {host}:{port}")
+            return ServiceCheck("SSH", False, f"Cannot reach {host}:{port}")
+        except subprocess.TimeoutExpired:
+            return ServiceCheck("SSH", False, f"Timeout connecting to {host}:{port}")
+        except Exception as e:
+            return ServiceCheck("SSH", False, str(e))
+
+    def check_remote_url(self, url: str, timeout: int = 5) -> ServiceCheck:
+        """Check if a remote URL is reachable via HTTP GET."""
+        import urllib.request
+        import urllib.error
+        try:
+            req = urllib.request.Request(url, method="GET")
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                status = resp.status
+                return ServiceCheck("Remote URL", True, f"{url} (HTTP {status})")
+        except urllib.error.HTTPError as e:
+            # Server responded — it's reachable even if 4xx/5xx
+            return ServiceCheck("Remote URL", True, f"{url} (HTTP {e.code})")
+        except Exception as e:
+            return ServiceCheck("Remote URL", False, f"{url}: {e}")
+
     def get_unique_screens(self) -> list[str]:
         """Get list of unique screen names from OCR files."""
         screens = set()

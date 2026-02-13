@@ -6,10 +6,11 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from cli.display.components import print_header
+from cli.display.components import print_header, print_success, print_error
 from cli.display.colors import COLORS
 from cli.config import get_settings
 from cli.services.health import HealthService
+from cli.services.instance import InstanceService
 
 console = Console()
 
@@ -36,6 +37,21 @@ def config(ctx: typer.Context):
     table.add_column("Key", style="dim", width=20)
     table.add_column("Value", style="bold")
     table.add_column("Description", style="dim")
+
+    # Hosting mode
+    instance_svc = InstanceService()
+    instance_config = instance_svc.load()
+    table.add_row(
+        "hosting",
+        instance_config.hosting_mode,
+        "local | jetson | remote",
+    )
+
+    table.add_row(
+        "instance_name",
+        instance_config.instance_name,
+        "",
+    )
 
     # Add config values
     table.add_row(
@@ -91,11 +107,26 @@ def config_set(
     """Set a configuration value."""
     settings = get_settings()
 
-    valid_keys = ["capture_interval", "chroma_host", "chroma_port"]
+    valid_keys = ["capture_interval", "chroma_host", "chroma_port", "hosting"]
 
     if key not in valid_keys:
-        console.print(f"  [{COLORS['error']}]✗[/] Unknown key: {key}")
+        print_error(f"Unknown key: {key}")
         console.print(f"  [dim]Valid keys: {', '.join(valid_keys)}[/dim]")
+        return
+
+    # Handle hosting mode switch
+    if key == "hosting":
+        valid_modes = ["local", "jetson", "remote"]
+        if value not in valid_modes:
+            print_error(f"Invalid hosting mode: {value}")
+            console.print(f"  [dim]Valid modes: {', '.join(valid_modes)}[/dim]")
+            return
+
+        instance_svc = InstanceService()
+        instance_svc.set_hosting_mode(value)
+        print_success(f"Hosting mode set to [bold]{value}[/bold]")
+        console.print("  [dim]Restart memex for changes to take effect: memex start[/dim]")
+        console.print()
         return
 
     # For now, just show what would be set

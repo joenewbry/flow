@@ -14,6 +14,7 @@ import json
 import logging
 import os
 import sys
+import time
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -64,6 +65,34 @@ logger.addHandler(console_handler)
 audit_logger = logging.getLogger("prometheus.audit")
 audit_logger.setLevel(logging.INFO)
 audit_logger.addHandler(audit_handler)
+
+# Usage tracking — JSONL append compatible with cli/services/usage.py schema
+usage_log_path = log_dir / "usage.jsonl"
+
+
+def _log_usage_event(instance: str, tool_name: str, arguments: dict, result: Any, duration_ms: int):
+    """Append a JSONL usage event for metering."""
+    try:
+        query_len = len(json.dumps(arguments)) if arguments else 0
+        result_count = 0
+        if isinstance(result, dict):
+            result_count = result.get("total_results", result.get("count", 0))
+        elif isinstance(result, list):
+            result_count = len(result)
+        event = {
+            "ts": datetime.now().isoformat(timespec="seconds"),
+            "event": "tool_call",
+            "instance": instance,
+            "tool": tool_name,
+            "query_len": query_len,
+            "results": result_count,
+            "duration_ms": duration_ms,
+        }
+        with open(usage_log_path, "a") as f:
+            f.write(json.dumps(event) + "\n")
+    except Exception:
+        pass
+
 
 # Constants
 PROTOCOL_VERSION = "2025-11-25"
@@ -306,9 +335,12 @@ async def mcp_endpoint(instance: str, request: Request):
         # Call tool
         try:
             logger.info(f"tools/call: instance={instance} tool={tool_name} args={arguments}")
+            t0 = time.monotonic()
             result = await inst.call_tool(tool_name, arguments)
+            duration_ms = int((time.monotonic() - t0) * 1000)
 
-            audit_logger.info(f"TOOL_OK instance={instance} ip={client_ip} tool={tool_name}")
+            audit_logger.info(f"TOOL_OK instance={instance} ip={client_ip} tool={tool_name} duration_ms={duration_ms}")
+            _log_usage_event(instance, tool_name, arguments, result, duration_ms)
 
             return JSONResponse(
                 content={
@@ -321,6 +353,7 @@ async def mcp_endpoint(instance: str, request: Request):
                 },
             )
         except Exception as e:
+            duration_ms = int((time.monotonic() - t0) * 1000) if 't0' in locals() else 0
             logger.error(f"Error calling tool {tool_name}: {e}")
             return JSONResponse(
                 content={
